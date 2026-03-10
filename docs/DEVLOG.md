@@ -84,3 +84,12 @@
 - Uses `ST_DWithin` for efficient spatial filtering on the Overture Maps `places` table
 - Service layer (`poi_service.py`) handles JSONB parsing for Overture `names` and `categories` fields
 - Configurable defaults via `POI_SEARCH_RADIUS_METERS` and `POI_MAX_CANDIDATES` env vars
+
+## 2026-03-09 — `feat/api-next-question-endpoint`
+
+**What:** Implemented next-question selection logic and game endpoint.
+
+- `GET /game/next-question` returns a question with GPS point and candidate POIs
+- Selection strategy: prefer GPS points with fewest answers, skip already-answered by user, require minimum 3 candidates
+- Creates Question records on demand (lazy creation per GPS point)
+- Added schemas for game responses (`NextQuestionResponse`, `AnswerRequest`, `AnswerResponse`, `LeaderboardEntry`)
