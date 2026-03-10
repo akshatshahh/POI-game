@@ -26,7 +26,6 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   if (!res.ok) {
     if (res.status === 401) {
       clearToken();
-      window.location.href = "/";
     }
     throw new Error(`API error: ${res.status}`);
   }

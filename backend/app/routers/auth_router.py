@@ -29,7 +29,7 @@ async def google_login() -> RedirectResponse:
         "response_type": "code",
         "scope": "openid email profile",
         "access_type": "offline",
-        "prompt": "consent",
+        "prompt": "select_account",
     }
     url = f"{GOOGLE_AUTH_URL}?" + "&".join(f"{k}={v}" for k, v in params.items())
     return RedirectResponse(url=url)
