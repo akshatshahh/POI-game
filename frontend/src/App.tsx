@@ -6,7 +6,7 @@ import { Leaderboard } from "./pages/Leaderboard";
 import { useAuth } from "./hooks/useAuth";
 
 function App() {
-  const { user, loading, logout } = useAuth();
+  const { user, loading, logout, refetchUser } = useAuth();
 
   if (loading) {
     return (
@@ -25,7 +25,7 @@ function App() {
           <Route path="/" element={<Home user={user} />} />
           <Route
             path="/play"
-            element={user ? <Play /> : <Navigate to="/" replace />}
+            element={user ? <Play onScoreUpdate={refetchUser} /> : <Navigate to="/" replace />}
           />
           <Route path="/leaderboard" element={<Leaderboard />} />
         </Routes>

@@ -4,7 +4,11 @@ import { PoiList } from "../components/PoiList";
 import { api } from "../lib/api";
 import type { AnswerResponse, Question } from "../lib/types";
 
-export function Play() {
+interface PlayProps {
+  onScoreUpdate: () => void;
+}
+
+export function Play({ onScoreUpdate }: PlayProps) {
   const [question, setQuestion] = useState<Question | null>(null);
   const [selectedPoiId, setSelectedPoiId] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -46,6 +50,7 @@ export function Play() {
         selected_poi_id: selectedPoiId,
       });
       setFeedback(result);
+      onScoreUpdate();
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Submission failed";
       setError(msg);
@@ -103,6 +108,14 @@ export function Play() {
               <div className="feedback-score">
                 +{feedback.score_awarded} points
               </div>
+              <div className="feedback-breakdown">
+                <span className="breakdown-item">5 base</span>
+                <span className="breakdown-sep">+</span>
+                <span className="breakdown-item">{feedback.score_awarded - 5} proximity</span>
+              </div>
+              <p className="feedback-hint">
+                Consensus bonus (+10) unlocks when others agree!
+              </p>
               <button onClick={fetchQuestion} className="btn btn-primary btn-lg btn-full">
                 Next Question →
               </button>

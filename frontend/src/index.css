@@ -377,6 +377,34 @@ a {
   border-radius: var(--radius);
 }
 
+.feedback-breakdown {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.85rem;
+  color: var(--color-text-muted);
+}
+
+.breakdown-item {
+  background: var(--color-surface);
+  padding: 0.2rem 0.5rem;
+  border-radius: var(--radius-sm, 4px);
+}
+
+.breakdown-sep {
+  color: var(--color-text-muted);
+  opacity: 0.5;
+}
+
+.feedback-hint {
+  text-align: center;
+  font-size: 0.78rem;
+  color: var(--color-text-muted);
+  opacity: 0.8;
+  margin: 0;
+}
+
 .btn-full {
   width: 100%;
 }
