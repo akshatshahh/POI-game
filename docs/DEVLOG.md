@@ -75,3 +75,12 @@
 - Built `Navbar` with auth-aware rendering (login button vs user info)
 - Pages: Home (with stats), Play (placeholder), Leaderboard (placeholder)
 - Modern dark-themed UI with CSS custom properties, no component library needed for v1
+
+## 2026-03-09 — `feat/api-nearby-pois-for-gps-point`
+
+**What:** Added nearby POI query API using PostGIS spatial functions.
+
+- `GET /pois/nearby?lat=...&lon=...&radius=...&limit=...` returns candidate POIs sorted by distance
+- Uses `ST_DWithin` for efficient spatial filtering on the Overture Maps `places` table
+- Service layer (`poi_service.py`) handles JSONB parsing for Overture `names` and `categories` fields
+- Configurable defaults via `POI_SEARCH_RADIUS_METERS` and `POI_MAX_CANDIDATES` env vars
