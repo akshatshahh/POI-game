@@ -1,12 +1,124 @@
+import { useCallback, useEffect, useState } from "react";
+import { GameMap } from "../components/GameMap";
+import { PoiList } from "../components/PoiList";
+import { api } from "../lib/api";
+import type { AnswerResponse, Question } from "../lib/types";
+
 export function Play() {
+  const [question, setQuestion] = useState<Question | null>(null);
+  const [selectedPoiId, setSelectedPoiId] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+  const [feedback, setFeedback] = useState<AnswerResponse | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  const fetchQuestion = useCallback(async () => {
+    setLoading(true);
+    setSelectedPoiId(null);
+    setFeedback(null);
+    setError(null);
+    try {
+      const q = await api.get<Question>("/game/next-question");
+      setQuestion(q);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Failed to load question";
+      if (msg.includes("404")) {
+        setError("No more questions available. Check back later!");
+      } else {
+        setError(msg);
+      }
+      setQuestion(null);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchQuestion();
+  }, [fetchQuestion]);
+
+  const handleSubmit = async () => {
+    if (!question || !selectedPoiId) return;
+    setSubmitting(true);
+    try {
+      const result = await api.post<AnswerResponse>("/game/answer", {
+        question_id: question.question_id,
+        selected_poi_id: selectedPoiId,
+      });
+      setFeedback(result);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Submission failed";
+      setError(msg);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="page play-page">
+        <div className="loading-screen">
+          <div className="spinner" />
+          <p>Loading question...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (error && !question) {
+    return (
+      <div className="page play-page">
+        <div className="game-empty">
+          <h2>No Questions Available</h2>
+          <p>{error}</p>
+          <button onClick={fetchQuestion} className="btn btn-primary">
+            Try Again
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  if (!question) return null;
+
   return (
     <div className="page play-page">
-      <h2>Game Screen</h2>
-      <p className="placeholder-text">
-        The game interface will be implemented in Task 8.
-        <br />
-        You'll see a map with a GPS point and nearby POIs to choose from.
-      </p>
+      <div className="game-layout">
+        <div className="game-map-container">
+          <GameMap
+            gpsPoint={question.gps_point}
+            candidates={question.candidates}
+            selectedPoiId={selectedPoiId}
+            onSelectPoi={setSelectedPoiId}
+          />
+        </div>
+        <div className="game-sidebar">
+          <PoiList
+            candidates={question.candidates}
+            selectedPoiId={selectedPoiId}
+            onSelectPoi={setSelectedPoiId}
+          />
+          {feedback ? (
+            <div className="feedback-panel">
+              <div className="feedback-score">
+                +{feedback.score_awarded} points
+              </div>
+              <button onClick={fetchQuestion} className="btn btn-primary btn-lg btn-full">
+                Next Question →
+              </button>
+            </div>
+          ) : (
+            <button
+              onClick={handleSubmit}
+              disabled={!selectedPoiId || submitting}
+              className="btn btn-primary btn-lg btn-full"
+            >
+              {submitting ? "Submitting..." : "Submit Answer"}
+            </button>
+          )}
+          {error && <p className="error-text">{error}</p>}
+        </div>
+      </div>
     </div>
   );
 }
