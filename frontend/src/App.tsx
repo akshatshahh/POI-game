@@ -27,7 +27,10 @@ function App() {
             path="/play"
             element={user ? <Play onScoreUpdate={refetchUser} /> : <Navigate to="/" replace />}
           />
-          <Route path="/leaderboard" element={<Leaderboard />} />
+          <Route
+            path="/leaderboard"
+            element={user ? <Leaderboard /> : <Navigate to="/" replace />}
+          />
         </Routes>
       </main>
     </BrowserRouter>
