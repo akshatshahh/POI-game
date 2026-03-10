@@ -149,3 +149,21 @@
 - `infra/docker-compose.yml` — orchestrates db (PostGIS), backend, frontend
 - `.env.example` — template for all required environment variables
 - `.dockerignore` files for backend and frontend
+
+## 2026-03-09 — `chore/tests-and-polish-v1`
+
+**What:** Added test suite, manual test checklist, and documentation polish for v1.
+
+- 15 automated backend tests using pytest + pytest-asyncio + SQLite in-memory
+- Tests cover: health, auth (4 tests), game (4 tests), leaderboard (2 tests), admin (4 tests)
+- `docs/TESTING.md` with full manual test checklist
+- Updated `README.md` with comprehensive API reference, scoring algorithm docs, project structure
+- All test dependencies added to `requirements.txt`
+
+**v1 status:** All 12 tasks complete. App is demoable with:
+- Google login
+- Map-based game screen with POI selection
+- Consensus-based scoring
+- Leaderboard
+- Admin tools for GPS import and label export
+- Docker setup for local orchestration
