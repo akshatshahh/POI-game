@@ -47,3 +47,19 @@
 - `score_awarded` on Answer for audit trail; `User.score` is the running total
 - `answers_count` on User for quick stats without COUNT queries
 - No separate Leaderboard table — query `users ORDER BY score` is sufficient for v1
+
+## 2026-03-09 — `feat/auth-google-oauth`
+
+**What:** Implemented Google OAuth2 login flow and user profile endpoint.
+
+- `GET /auth/google/login` — redirects to Google consent screen
+- `GET /auth/google/callback` — exchanges code, upserts User, sets JWT cookie and redirects to frontend
+- `GET /auth/me` — returns current user profile (requires auth)
+- `POST /auth/logout` — clears auth cookie
+- JWT-based auth with Bearer header and cookie support
+- `get_current_user` and `require_admin` FastAPI dependencies for route protection
+
+**Technical choices:**
+- JWT (python-jose) over server-side sessions — stateless, simpler to scale, no session store needed
+- Token passed both as httpOnly cookie and in redirect URL query param (frontend can store it)
+- 30-day token expiry for game context (low-risk, high-convenience)
