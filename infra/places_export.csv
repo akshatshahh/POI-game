@@ -1,0 +1,11 @@
+id,names,categories,lat,lon
+poi-1,"{""primary"": ""USC Village Dining""}","{""primary"": ""restaurant""}",34.0255,-118.285
+poi-2,"{""primary"": ""Starbucks""}","{""primary"": ""coffee_shop""}",34.025,-118.284
+poi-3,"{""primary"": ""USC Bookstore""}","{""primary"": ""bookstore""}",34.0222,-118.2835
+poi-4,"{""primary"": ""Leavey Library""}","{""primary"": ""library""}",34.0216,-118.2828
+poi-5,"{""primary"": ""Tommy Trojan""}","{""primary"": ""landmark""}",34.0206,-118.2854
+poi-6,"{""primary"": ""Chick-fil-A""}","{""primary"": ""fast_food""}",34.0253,-118.2862
+poi-7,"{""primary"": ""Target""}","{""primary"": ""department_store""}",34.0258,-118.287
+poi-8,"{""primary"": ""Trader Joes""}","{""primary"": ""grocery""}",34.0262,-118.2812
+poi-9,"{""primary"": ""Dulce Coffee""}","{""primary"": ""coffee_shop""}",34.023,-118.2845
+poi-10,"{""primary"": ""Insomnia Cookies""}","{""primary"": ""bakery""}",34.0248,-118.2838
