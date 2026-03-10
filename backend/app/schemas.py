@@ -17,3 +17,12 @@ class UserResponse(BaseModel):
     created_at: datetime.datetime
 
     model_config = {"from_attributes": True}
+
+
+class PoiResponse(BaseModel):
+    id: str
+    name: str
+    category: str
+    lat: float
+    lon: float
+    distance_meters: float
