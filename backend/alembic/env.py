@@ -11,7 +11,10 @@ from app.database import Base
 import app.models  # noqa: F401 — ensure models are registered
 
 config = context.config
-config.set_main_option("sqlalchemy.url", settings.database_url)
+_alembic_db_url = settings.database_url
+if _alembic_db_url.startswith("postgresql://"):
+    _alembic_db_url = _alembic_db_url.replace("postgresql://", "postgresql+asyncpg://", 1)
+config.set_main_option("sqlalchemy.url", _alembic_db_url)
 
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
