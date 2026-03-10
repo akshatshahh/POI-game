@@ -138,3 +138,14 @@
 - `GET /admin/export/labels?format=csv|json` — export all labels for ML pipelines
 - All admin endpoints protected by `require_admin` dependency (checks `User.is_admin` flag)
 - Added `python-multipart` dependency for file upload support
+
+## 2026-03-09 — `chore/docker-and-local-env`
+
+**What:** Added Docker setup for the full stack.
+
+- `backend/Dockerfile` — Python 3.12 slim image with uvicorn
+- `frontend/Dockerfile` — multi-stage build (Node builder → nginx for static files)
+- `frontend/nginx.conf` — SPA-friendly nginx config with caching
+- `infra/docker-compose.yml` — orchestrates db (PostGIS), backend, frontend
+- `.env.example` — template for all required environment variables
+- `.dockerignore` files for backend and frontend
