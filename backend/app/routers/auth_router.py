@@ -88,11 +88,13 @@ async def google_callback(
 
     access_token = create_access_token(user.id)
 
+    is_https = settings.backend_url.startswith("https")
     response = RedirectResponse(url=f"{settings.frontend_url}/?token={access_token}")
     response.set_cookie(
         key="access_token",
         value=access_token,
         httponly=True,
+        secure=is_https,
         max_age=60 * 60 * 24 * 30,
         samesite="lax",
     )
