@@ -31,3 +31,19 @@
 - `pydantic-settings` for config — validates env vars with type safety and defaults
 - Async SQLAlchemy (`asyncpg` driver) — non-blocking DB access for FastAPI's async handlers
 - Alembic configured with `async_engine_from_config` for async migration support
+
+## 2026-03-09 — `feat/db-schema-core-models`
+
+**What:** Defined core database models for the game entities.
+
+- `User` — Google OAuth profile, cumulative score, admin flag
+- `GpsPoint` — lat/lon/timestamp for GPS observations to be labeled
+- `Question` — links a GPS point to a labeling session with status tracking
+- `Answer` — records a user's POI selection for a question, with score awarded
+
+**Schema decisions:**
+- UUIDs as primary keys — avoids sequential ID enumeration, safe for public APIs
+- `selected_poi_id` stored as string (references Overture Places table which we don't own/modify)
+- `score_awarded` on Answer for audit trail; `User.score` is the running total
+- `answers_count` on User for quick stats without COUNT queries
+- No separate Leaderboard table — query `users ORDER BY score` is sufficient for v1
