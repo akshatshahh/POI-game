@@ -61,3 +61,19 @@ class LeaderboardEntry(BaseModel):
     avatar_url: str | None
     score: int
     answers_count: int
+
+
+class GpsPointInput(BaseModel):
+    lat: float
+    lon: float
+    timestamp: datetime.datetime | None = None
+    source: str | None = None
+
+
+class GpsPointBulkRequest(BaseModel):
+    points: list[GpsPointInput]
+
+
+class GpsPointBulkResponse(BaseModel):
+    created: int
+    total: int

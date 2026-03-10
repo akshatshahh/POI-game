@@ -7,6 +7,7 @@ from sqlalchemy import text
 
 from app.config import settings
 from app.database import engine
+from app.routers.admin_router import router as admin_router
 from app.routers.auth_router import router as auth_router
 from app.routers.game_router import router as game_router
 from app.routers.leaderboard_router import router as leaderboard_router
@@ -36,6 +37,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+app.include_router(admin_router)
 app.include_router(auth_router)
 app.include_router(game_router)
 app.include_router(leaderboard_router)
