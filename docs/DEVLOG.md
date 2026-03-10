@@ -16,3 +16,18 @@
 **Decision notes:**
 - Frontend: React + Vite chosen over Next.js — we don't need SSR for a game UI, and Vite gives faster dev iteration. TypeScript for type safety.
 - Backend: FastAPI with async SQLAlchemy for non-blocking DB access with PostGIS.
+
+## 2026-03-09 — `feat/backend-core-setup`
+
+**What:** Set up minimal FastAPI application with database connectivity.
+
+- Created `app/main.py` with FastAPI instance, CORS middleware, and `GET /health` endpoint
+- Created `app/config.py` using `pydantic-settings` for centralized env-based configuration
+- Created `app/database.py` with async SQLAlchemy engine, session factory, and `get_db` dependency
+- Initialized Alembic for async migrations with `app.models` auto-import
+- Created placeholder `app/models.py` for future ORM models
+
+**Technical choices:**
+- `pydantic-settings` for config — validates env vars with type safety and defaults
+- Async SQLAlchemy (`asyncpg` driver) — non-blocking DB access for FastAPI's async handlers
+- Alembic configured with `async_engine_from_config` for async migration support
