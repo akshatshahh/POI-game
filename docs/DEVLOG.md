@@ -93,3 +93,18 @@
 - Selection strategy: prefer GPS points with fewest answers, skip already-answered by user, require minimum 3 candidates
 - Creates Question records on demand (lazy creation per GPS point)
 - Added schemas for game responses (`NextQuestionResponse`, `AnswerRequest`, `AnswerResponse`, `LeaderboardEntry`)
+
+## 2026-03-09 — `feat/api-submit-answer-and-scoring`
+
+**What:** Added answer submission endpoint with consensus-based scoring.
+
+- `POST /game/answer` validates POI is a candidate, creates Answer, computes score
+- Consensus scoring: 10 points if answer matches most popular choice, 2 points otherwise
+- Retroactive score updates when consensus shifts (keeps all scores accurate)
+- Prevents duplicate answers per user per question
+- User score and answers_count updated atomically
+
+**Scoring algorithm (v1):**
+- FULL_POINTS (10) if selected POI == consensus POI (most-chosen)
+- PARTICIPATION_POINTS (2) otherwise or if < 2 answers exist
+- After each new answer, all answers for that question are re-evaluated
