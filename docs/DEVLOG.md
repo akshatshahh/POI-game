@@ -128,3 +128,13 @@
 - Frontend leaderboard page with styled table, rank badges, and top-3 highlighting
 - Only shows users who have submitted at least one answer
 - Linked from navbar for both authenticated and unauthenticated users
+
+## 2026-03-09 — `feat/admin-and-export-tools`
+
+**What:** Added admin endpoints for GPS point ingestion and label export.
+
+- `POST /admin/gps-points/bulk` — JSON bulk import of GPS points
+- `POST /admin/gps-points/upload-csv` — CSV file upload for GPS points
+- `GET /admin/export/labels?format=csv|json` — export all labels for ML pipelines
+- All admin endpoints protected by `require_admin` dependency (checks `User.is_admin` flag)
+- Added `python-multipart` dependency for file upload support
