@@ -119,3 +119,12 @@
 - Loading, error, and empty states handled
 - Responsive layout (sidebar stacks below map on mobile)
 - Added Leaflet + react-leaflet dependencies
+
+## 2026-03-09 — `feat/leaderboard`
+
+**What:** Added leaderboard API endpoint and frontend page.
+
+- `GET /leaderboard?limit=50` returns ranked users with score and answers count
+- Frontend leaderboard page with styled table, rank badges, and top-3 highlighting
+- Only shows users who have submitted at least one answer
+- Linked from navbar for both authenticated and unauthenticated users
