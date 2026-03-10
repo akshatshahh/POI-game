@@ -1,0 +1,10 @@
+{
+  "name": "poi-game-frontend",
+  "private": true,
+  "version": "0.1.0",
+  "description": "POI Game frontend — React + Vite + TypeScript",
+  "scripts": {
+    "dev": "echo 'Frontend not yet scaffolded. Run Task 4 first.'",
+    "build": "echo 'Frontend not yet scaffolded.'"
+  }
+}
