@@ -30,6 +30,7 @@ export function useAuth() {
   const logout = useCallback(() => {
     clearToken();
     setUser(null);
+    window.location.href = "/";
   }, []);
 
   return { user, loading, logout, refetchUser: fetchUser };
