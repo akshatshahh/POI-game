@@ -108,3 +108,14 @@
 - FULL_POINTS (10) if selected POI == consensus POI (most-chosen)
 - PARTICIPATION_POINTS (2) otherwise or if < 2 answers exist
 - After each new answer, all answers for that question are re-evaluated
+
+## 2026-03-09 — `feat/frontend-game-screen`
+
+**What:** Implemented the main game screen with interactive map and POI selection.
+
+- Interactive Leaflet map showing GPS point (red marker) and candidate POIs (blue/green markers)
+- Clickable POI list sidebar with name, category, and distance
+- Full game loop: load question → select POI → submit → see score → next question
+- Loading, error, and empty states handled
+- Responsive layout (sidebar stacks below map on mobile)
+- Added Leaflet + react-leaflet dependencies
