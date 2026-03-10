@@ -63,3 +63,15 @@
 - JWT (python-jose) over server-side sessions — stateless, simpler to scale, no session store needed
 - Token passed both as httpOnly cookie and in redirect URL query param (frontend can store it)
 - 30-day token expiry for game context (low-risk, high-convenience)
+
+## 2026-03-09 — `feat/frontend-scaffold-and-auth`
+
+**What:** Scaffolded React + Vite + TypeScript frontend with Google auth integration.
+
+- Bootstrapped with `create-vite` (react-ts template)
+- Added `react-router-dom` for client-side routing
+- Implemented auth flow: Google login button → backend redirect → token capture from URL → stored in localStorage
+- Created `useAuth` hook, API client (`lib/api.ts`), type definitions
+- Built `Navbar` with auth-aware rendering (login button vs user info)
+- Pages: Home (with stats), Play (placeholder), Leaderboard (placeholder)
+- Modern dark-themed UI with CSS custom properties, no component library needed for v1
