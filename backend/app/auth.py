@@ -1,8 +1,9 @@
-"""Authentication utilities: JWT creation/verification, current-user dependency."""
+"""Authentication utilities: JWT creation/verification, password hashing, current-user dependency."""
 
 import datetime
 import uuid
 
+import bcrypt
 from fastapi import Depends, HTTPException, Request, status
 from jose import JWTError, jwt
 from sqlalchemy import select
@@ -14,6 +15,14 @@ from app.models import User
 
 ALGORITHM = "HS256"
 TOKEN_EXPIRE_DAYS = 30
+
+
+def get_password_hash(plain_password: str) -> str:
+    return bcrypt.hashpw(plain_password.encode(), bcrypt.gensalt()).decode()
+
+
+def verify_password(plain_password: str, hashed_password: str) -> bool:
+    return bcrypt.checkpw(plain_password.encode(), hashed_password.encode())
 
 
 def create_access_token(user_id: uuid.UUID) -> str:

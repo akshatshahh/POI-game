@@ -1,5 +1,4 @@
 import { Link } from "react-router-dom";
-import { getGoogleLoginUrl } from "../lib/api";
 import type { User } from "../lib/types";
 
 interface NavbarProps {
@@ -34,9 +33,14 @@ export function Navbar({ user, onLogout }: NavbarProps) {
             </div>
           </>
         ) : (
-          <a href={getGoogleLoginUrl()} className="btn btn-primary">
-            Sign in with Google
-          </a>
+          <div className="navbar-auth">
+            <Link to="/login" className="btn btn-sm btn-outline">
+              Log In
+            </Link>
+            <Link to="/register" className="btn btn-sm btn-primary">
+              Register
+            </Link>
+          </div>
         )}
       </div>
     </nav>

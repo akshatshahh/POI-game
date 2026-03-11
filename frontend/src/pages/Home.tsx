@@ -1,4 +1,4 @@
-import { getGoogleLoginUrl } from "../lib/api";
+import { Link } from "react-router-dom";
 import type { User } from "../lib/types";
 
 interface HomeProps {
@@ -28,15 +28,18 @@ export function Home({ user }: HomeProps) {
                 <span className="stat-label">Answers</span>
               </div>
             </div>
-            <a href="/play" className="btn btn-primary btn-lg">
+            <Link to="/play" className="btn btn-primary btn-lg">
               Continue Playing
-            </a>
+            </Link>
           </div>
         ) : (
           <div className="hero-cta">
-            <a href={getGoogleLoginUrl()} className="btn btn-primary btn-lg">
-              Sign in with Google to Play
-            </a>
+            <Link to="/register" className="btn btn-primary btn-lg">
+              Get Started
+            </Link>
+            <p className="hero-cta-sub">
+              Already have an account? <Link to="/login">Log in</Link>
+            </p>
           </div>
         )}
       </div>
