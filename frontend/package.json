@@ -8,7 +8,7 @@
     "build": "tsc -b && vite build",
     "lint": "eslint .",
     "preview": "vite preview",
-    "start": "serve -s dist"
+    "start": "npx serve -s dist -l ${PORT:-3000}"
   },
   "dependencies": {
     "@types/leaflet": "^1.9.21",
