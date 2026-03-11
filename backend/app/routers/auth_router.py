@@ -1,15 +1,25 @@
-"""Google OAuth2 login endpoints."""
+"""Auth endpoints: local register/login + Google OAuth2."""
 
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import RedirectResponse
-from sqlalchemy import select
+from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.auth import create_access_token, get_current_user
+from app.auth import (
+    create_access_token,
+    get_current_user,
+    get_password_hash,
+    verify_password,
+)
 from app.config import settings
 from app.database import get_db
 from app.models import User
-from app.schemas import UserResponse
+from app.schemas import (
+    AuthTokenResponse,
+    LoginRequest,
+    RegisterRequest,
+    UserResponse,
+)
 
 import httpx
 
@@ -99,6 +109,58 @@ async def google_callback(
         samesite="lax",
     )
     return response
+
+
+@router.post("/register", response_model=AuthTokenResponse)
+async def register(
+    body: RegisterRequest,
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    existing = await db.execute(
+        select(User).where(
+            or_(User.username == body.username, User.email == body.email)
+        )
+    )
+    conflict = existing.scalar_one_or_none()
+    if conflict is not None:
+        if conflict.username == body.username:
+            raise HTTPException(status_code=409, detail="Username already taken")
+        raise HTTPException(status_code=409, detail="Email already registered")
+
+    user = User(
+        username=body.username,
+        email=body.email,
+        display_name=body.name,
+        password_hash=get_password_hash(body.password),
+    )
+    db.add(user)
+    await db.flush()
+
+    token = create_access_token(user.id)
+    return {"token": token, "user": user}
+
+
+@router.post("/login", response_model=AuthTokenResponse)
+async def login(
+    body: LoginRequest,
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    identifier = body.username_or_email.strip().lower()
+    result = await db.execute(
+        select(User).where(
+            or_(User.username == body.username_or_email, User.email == identifier)
+        )
+    )
+    user = result.scalar_one_or_none()
+
+    if user is None or user.password_hash is None:
+        raise HTTPException(status_code=401, detail="Invalid credentials")
+
+    if not verify_password(body.password, user.password_hash):
+        raise HTTPException(status_code=401, detail="Invalid credentials")
+
+    token = create_access_token(user.id)
+    return {"token": token, "user": user}
 
 
 @router.get("/me", response_model=UserResponse)
