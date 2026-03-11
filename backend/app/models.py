@@ -20,9 +20,11 @@ class User(Base):
     __tablename__ = "users"
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    google_id: Mapped[str] = mapped_column(String(255), unique=True, index=True)
+    google_id: Mapped[str | None] = mapped_column(String(255), unique=True, index=True, nullable=True)
+    username: Mapped[str | None] = mapped_column(String(20), unique=True, index=True, nullable=True)
     email: Mapped[str] = mapped_column(String(320), unique=True, index=True)
     display_name: Mapped[str] = mapped_column(String(255))
+    password_hash: Mapped[str | None] = mapped_column(String(255), nullable=True)
     avatar_url: Mapped[str | None] = mapped_column(Text, nullable=True)
     score: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
     answers_count: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
