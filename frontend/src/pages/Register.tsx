@@ -1,4 +1,4 @@
-import { FormEvent, useState } from "react";
+import { type FormEvent, useState } from "react";
 import { Link } from "react-router-dom";
 import { api, getGoogleLoginUrl, setToken } from "../lib/api";
 import type { User } from "../lib/types";
