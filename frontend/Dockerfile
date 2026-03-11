@@ -1,20 +1,12 @@
-FROM node:20-alpine AS builder
-
-ARG VITE_API_URL
-ENV VITE_API_URL=$VITE_API_URL
+FROM node:20-alpine
 
 WORKDIR /app
 
 COPY package.json package-lock.json ./
 RUN npm ci
+RUN npm install -g serve
 
-ARG CACHEBUST=1
 COPY . .
 RUN npm run build
 
-FROM nginx:alpine
-
-COPY --from=builder /app/dist /usr/share/nginx/html
-COPY nginx.conf /etc/nginx/conf.d/default.conf
-
-CMD sh -c "sed -i 's/__PORT__/'\"${PORT:-80}\"'/g' /etc/nginx/conf.d/default.conf && nginx -g 'daemon off;'"
+CMD sh -c "serve -s dist -l ${PORT:-3000}"
