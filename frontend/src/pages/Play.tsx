@@ -102,6 +102,7 @@ export function Play({ onScoreUpdate }: PlayProps) {
             candidates={question.candidates}
             selectedPoiId={selectedPoiId}
             onSelectPoi={setSelectedPoiId}
+            gpsPoint={question.gps_point}
           />
           {feedback ? (
             <div className="feedback-panel">

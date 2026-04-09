@@ -1,14 +1,26 @@
-import type { Poi } from "../lib/types";
+import type { GpsPoint, Poi } from "../lib/types";
 
 interface PoiListProps {
   candidates: Poi[];
   selectedPoiId: string | null;
   onSelectPoi: (poiId: string) => void;
+  gpsPoint: GpsPoint;
 }
 
-export function PoiList({ candidates, selectedPoiId, onSelectPoi }: PoiListProps) {
+export function PoiList({ candidates, selectedPoiId, onSelectPoi, gpsPoint }: PoiListProps) {
+  const hasTime = gpsPoint.weekday || gpsPoint.local_date || gpsPoint.local_time;
+
   return (
     <div className="poi-list">
+      {hasTime && (
+        <div className="visit-time-banner">
+          <span className="visit-time-label">Visit recorded</span>
+          <span className="visit-time-value">
+            {gpsPoint.weekday}{gpsPoint.local_date ? `, ${gpsPoint.local_date}` : ""}
+            {gpsPoint.local_time ? ` at ${gpsPoint.local_time}` : ""}
+          </span>
+        </div>
+      )}
       <h3>Nearby Places</h3>
       <p className="poi-list-hint">Which POI was this person most likely visiting?</p>
       <div className="poi-items">

@@ -291,6 +291,31 @@ a {
   margin-bottom: 1.5rem;
 }
 
+/* Visit Time Banner */
+.visit-time-banner {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  padding: 0.6rem 0.75rem;
+  background: rgba(79, 70, 229, 0.1);
+  border: 1px solid rgba(79, 70, 229, 0.25);
+  border-radius: var(--radius);
+  margin-bottom: 0.75rem;
+}
+
+.visit-time-label {
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--color-text-muted);
+}
+
+.visit-time-value {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--color-text);
+}
+
 /* POI List */
 .poi-list h3 {
   font-size: 1rem;
