@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { api } from "../lib/api";
+import { api, safeAvatarUrl } from "../lib/api";
 import type { LeaderboardEntry } from "../lib/types";
 
 export function Leaderboard() {
@@ -50,7 +50,9 @@ export function Leaderboard() {
               </tr>
             </thead>
             <tbody>
-              {entries.map((entry) => (
+              {entries.map((entry) => {
+                const avatar = safeAvatarUrl(entry.avatar_url);
+                return (
                 <tr key={entry.rank} className={entry.rank <= 3 ? `top-${entry.rank}` : ""}>
                   <td className="col-rank">
                     <span className={`rank-badge ${entry.rank <= 3 ? "rank-top" : ""}`}>
@@ -59,8 +61,13 @@ export function Leaderboard() {
                   </td>
                   <td className="col-player">
                     <div className="player-info">
-                      {entry.avatar_url && (
-                        <img src={entry.avatar_url} alt="" className="avatar" />
+                      {avatar && (
+                        <img
+                          src={avatar}
+                          alt=""
+                          className="avatar"
+                          referrerPolicy="no-referrer"
+                        />
                       )}
                       <span>{entry.display_name}</span>
                     </div>
@@ -68,7 +75,8 @@ export function Leaderboard() {
                   <td className="col-answers">{entry.answers_count}</td>
                   <td className="col-score">{entry.score}</td>
                 </tr>
-              ))}
+              );
+              })}
             </tbody>
           </table>
         </div>

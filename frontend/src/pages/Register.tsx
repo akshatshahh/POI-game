@@ -1,6 +1,6 @@
 import { type FormEvent, useState } from "react";
 import { Link } from "react-router-dom";
-import { api, getGoogleLoginUrl, setToken } from "../lib/api";
+import { api, getGoogleLoginUrl } from "../lib/api";
 import type { User } from "../lib/types";
 
 interface RegisterProps {
@@ -42,11 +42,10 @@ export function Register({ onAuth }: RegisterProps) {
 
     setSubmitting(true);
     try {
-      const res = await api.post<{ token: string; user: User }>(
+      await api.post<{ user: User }>(
         "/auth/register",
         { name: name.trim(), username, email: email.trim().toLowerCase(), password },
       );
-      setToken(res.token);
       onAuth();
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Registration failed";

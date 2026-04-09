@@ -4,7 +4,7 @@ import csv
 import io
 import datetime
 
-from fastapi import APIRouter, Depends, Query, UploadFile, File
+from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
 from fastapi.responses import StreamingResponse
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -17,6 +17,17 @@ from app.services.poi_service import get_nearby_pois
 from app.services.question_service import _lat_lon_to_h3
 
 router = APIRouter(prefix="/admin", tags=["admin"])
+
+MAX_CSV_BYTES = 5 * 1024 * 1024
+MAX_POI_QUALITY_SCAN = 200
+
+
+def _excel_safe(value: object) -> str:
+    """Prefix cells that could be interpreted as formulas when opened in Excel."""
+    s = str(value) if value is not None else ""
+    if s and s[0] in ("=", "+", "-", "@", "\t", "\r"):
+        return "'" + s
+    return s
 
 
 @router.post("/gps-points/bulk", response_model=GpsPointBulkResponse)
@@ -49,17 +60,60 @@ async def upload_gps_csv(
 ) -> dict:
     """Upload a CSV file with columns: lat, lon, timestamp (optional), source (optional)."""
     content = await file.read()
-    text = content.decode("utf-8")
+    if len(content) > MAX_CSV_BYTES:
+        raise HTTPException(
+            status_code=413,
+            detail=f"CSV file too large (max {MAX_CSV_BYTES // (1024 * 1024)} MB)",
+        )
+
+    try:
+        text = content.decode("utf-8")
+    except UnicodeDecodeError as e:
+        raise HTTPException(status_code=400, detail="CSV must be UTF-8 encoded") from e
+
     reader = csv.DictReader(io.StringIO(text))
+    if reader.fieldnames is None:
+        raise HTTPException(status_code=400, detail="CSV has no header row")
+
+    required = {"lat", "lon"}
+    headers = {h.strip().lower() for h in reader.fieldnames if h}
+    if not required.issubset(headers):
+        raise HTTPException(
+            status_code=400,
+            detail=f"CSV must include columns: {', '.join(sorted(required))}",
+        )
 
     created = 0
-    for row in reader:
-        lat = float(row["lat"])
-        lon = float(row["lon"])
+    for row_num, raw in enumerate(reader, start=2):
+        row = {k.strip().lower(): v for k, v in raw.items() if k}
+        try:
+            lat = float(row["lat"])
+            lon = float(row["lon"])
+        except (KeyError, TypeError, ValueError) as e:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Invalid lat/lon on row {row_num}",
+            ) from e
+
+        if not (-90 <= lat <= 90) or not (-180 <= lon <= 180):
+            raise HTTPException(
+                status_code=400,
+                detail=f"lat/lon out of range on row {row_num}",
+            )
+
         timestamp = None
-        if "timestamp" in row and row["timestamp"]:
-            timestamp = datetime.datetime.fromisoformat(row["timestamp"])
+        if "timestamp" in row and row["timestamp"] and str(row["timestamp"]).strip():
+            try:
+                timestamp = datetime.datetime.fromisoformat(str(row["timestamp"]).strip())
+            except ValueError as e:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Invalid timestamp on row {row_num}",
+                ) from e
+
         source = row.get("source", None)
+        if source is not None and isinstance(source, str):
+            source = source.strip() or None
 
         gps = GpsPoint(
             lat=lat, lon=lon, timestamp=timestamp, source=source,
@@ -123,11 +177,11 @@ async def export_labels(
             str(answer.id),
             str(answer.question_id),
             str(answer.user_id),
-            user.email,
+            _excel_safe(user.email),
             gps_point.lat,
             gps_point.lon,
             gps_point.timestamp.isoformat() if gps_point.timestamp else "",
-            answer.selected_poi_id,
+            _excel_safe(answer.selected_poi_id),
             answer.score_awarded,
             answer.created_at.isoformat(),
         ])
@@ -144,34 +198,43 @@ async def export_labels(
 async def poi_quality_report(
     _admin: User = Depends(require_admin),
     db: AsyncSession = Depends(get_db),
+    include_points: bool = Query(
+        False,
+        description="If true, include per-point breakdown for the scanned sample.",
+    ),
 ) -> dict:
-    """Check candidate density and category diversity for each GPS point."""
+    """Check candidate density (scans at most 200 points to limit DB load)."""
     result = await db.execute(select(GpsPoint).order_by(GpsPoint.created_at.asc()))
     gps_points = result.scalars().all()
 
+    sample = gps_points[:MAX_POI_QUALITY_SCAN]
     report: list[dict] = []
     total_candidates = 0
     sparse_count = 0
 
-    for gp in gps_points:
+    for gp in sample:
         pois = await get_nearby_pois(db, lat=gp.lat, lon=gp.lon)
         categories = {p["category"] for p in pois}
         count = len(pois)
         total_candidates += count
         if count < 3:
             sparse_count += 1
-        report.append({
-            "gps_point_id": str(gp.id),
-            "lat": gp.lat,
-            "lon": gp.lon,
-            "candidate_count": count,
-            "unique_categories": len(categories),
-            "categories": sorted(categories),
-        })
+        if include_points:
+            report.append({
+                "gps_point_id": str(gp.id),
+                "lat": gp.lat,
+                "lon": gp.lon,
+                "candidate_count": count,
+                "unique_categories": len(categories),
+                "categories": sorted(categories),
+            })
 
+    n = len(sample)
     return {
         "total_gps_points": len(gps_points),
-        "sparse_points": sparse_count,
-        "avg_candidates": round(total_candidates / max(len(gps_points), 1), 1),
+        "scanned_points": n,
+        "scan_truncated": len(gps_points) > MAX_POI_QUALITY_SCAN,
+        "sparse_points_in_sample": sparse_count,
+        "avg_candidates_in_sample": round(total_candidates / max(n, 1), 1),
         "points": report,
     }

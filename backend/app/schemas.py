@@ -4,7 +4,7 @@ import re
 import datetime
 import uuid
 
-from pydantic import BaseModel, field_validator
+from pydantic import BaseModel, Field, field_validator
 
 
 class UserResponse(BaseModel):
@@ -66,9 +66,10 @@ class LoginRequest(BaseModel):
     password: str
 
 
-class AuthTokenResponse(BaseModel):
-    token: str
-    user: "UserResponse"
+class AuthSessionResponse(BaseModel):
+    """Returned after login/register; JWT is only in HttpOnly cookie (not in body)."""
+
+    user: UserResponse
 
 
 class PoiResponse(BaseModel):
@@ -126,7 +127,7 @@ class GpsPointInput(BaseModel):
 
 
 class GpsPointBulkRequest(BaseModel):
-    points: list[GpsPointInput]
+    points: list[GpsPointInput] = Field(..., max_length=5000)
 
 
 class GpsPointBulkResponse(BaseModel):

@@ -1,27 +1,33 @@
 """Auth endpoints: local register/login + Google OAuth2."""
 
+import secrets
+from urllib.parse import urlencode
+
+import httpx
 from fastapi import APIRouter, Depends, HTTPException, Request
-from fastapi.responses import RedirectResponse
+from fastapi.responses import JSONResponse, RedirectResponse
 from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth import (
+    clear_access_token_cookie,
+    clear_oauth_state_cookie,
     create_access_token,
     get_current_user,
     get_password_hash,
+    set_access_token_cookie,
+    set_oauth_state_cookie,
     verify_password,
 )
 from app.config import settings
 from app.database import get_db
 from app.models import User
 from app.schemas import (
-    AuthTokenResponse,
+    AuthSessionResponse,
     LoginRequest,
     RegisterRequest,
     UserResponse,
 )
-
-import httpx
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -33,6 +39,7 @@ GOOGLE_USERINFO_URL = "https://www.googleapis.com/oauth2/v2/userinfo"
 @router.get("/google/login")
 async def google_login() -> RedirectResponse:
     redirect_uri = f"{settings.backend_url}/auth/google/callback"
+    state = secrets.token_urlsafe(32)
     params = {
         "client_id": settings.google_client_id,
         "redirect_uri": redirect_uri,
@@ -40,17 +47,37 @@ async def google_login() -> RedirectResponse:
         "scope": "openid email profile",
         "access_type": "offline",
         "prompt": "select_account",
+        "state": state,
     }
-    url = f"{GOOGLE_AUTH_URL}?" + "&".join(f"{k}={v}" for k, v in params.items())
-    return RedirectResponse(url=url)
+    url = f"{GOOGLE_AUTH_URL}?{urlencode(params)}"
+    response = RedirectResponse(url=url)
+    set_oauth_state_cookie(response, state)
+    return response
 
 
 @router.get("/google/callback")
 async def google_callback(
-    code: str,
     request: Request,
+    code: str | None = None,
+    state: str | None = None,
+    error: str | None = None,
     db: AsyncSession = Depends(get_db),
 ) -> RedirectResponse:
+    frontend = settings.frontend_url.rstrip("/")
+
+    def fail_redirect() -> RedirectResponse:
+        return RedirectResponse(url=f"{frontend}/login?error=oauth")
+
+    if error:
+        return fail_redirect()
+
+    cookie_state = request.cookies.get("oauth_state")
+    if not code or not state or not cookie_state:
+        return fail_redirect()
+
+    if not secrets.compare_digest(cookie_state, state):
+        return fail_redirect()
+
     redirect_uri = f"{settings.backend_url}/auth/google/callback"
 
     async with httpx.AsyncClient() as client:
@@ -98,24 +125,17 @@ async def google_callback(
 
     access_token = create_access_token(user.id)
 
-    is_https = settings.backend_url.startswith("https")
-    response = RedirectResponse(url=f"{settings.frontend_url}/?token={access_token}")
-    response.set_cookie(
-        key="access_token",
-        value=access_token,
-        httponly=True,
-        secure=is_https,
-        max_age=60 * 60 * 24 * 30,
-        samesite="lax",
-    )
+    response = RedirectResponse(url=f"{frontend}/")
+    clear_oauth_state_cookie(response)
+    set_access_token_cookie(response, access_token)
     return response
 
 
-@router.post("/register", response_model=AuthTokenResponse)
+@router.post("/register", response_model=AuthSessionResponse)
 async def register(
     body: RegisterRequest,
     db: AsyncSession = Depends(get_db),
-) -> dict:
+) -> JSONResponse:
     existing = await db.execute(
         select(User).where(
             or_(User.username == body.username, User.email == body.email)
@@ -123,9 +143,10 @@ async def register(
     )
     conflict = existing.scalar_one_or_none()
     if conflict is not None:
-        if conflict.username == body.username:
-            raise HTTPException(status_code=409, detail="Username already taken")
-        raise HTTPException(status_code=409, detail="Email already registered")
+        raise HTTPException(
+            status_code=409,
+            detail="Could not create account with the provided username or email",
+        )
 
     user = User(
         username=body.username,
@@ -137,18 +158,24 @@ async def register(
     await db.flush()
 
     token = create_access_token(user.id)
-    return {"token": token, "user": user}
+    payload = AuthSessionResponse(user=UserResponse.model_validate(user)).model_dump(mode="json")
+    response = JSONResponse(content=payload)
+    set_access_token_cookie(response, token)
+    return response
 
 
-@router.post("/login", response_model=AuthTokenResponse)
+@router.post("/login", response_model=AuthSessionResponse)
 async def login(
     body: LoginRequest,
     db: AsyncSession = Depends(get_db),
-) -> dict:
+) -> JSONResponse:
     identifier = body.username_or_email.strip().lower()
     result = await db.execute(
         select(User).where(
-            or_(User.username == body.username_or_email, User.email == identifier)
+            or_(
+                User.username == body.username_or_email.strip(),
+                User.email == identifier,
+            )
         )
     )
     user = result.scalar_one_or_none()
@@ -160,7 +187,10 @@ async def login(
         raise HTTPException(status_code=401, detail="Invalid credentials")
 
     token = create_access_token(user.id)
-    return {"token": token, "user": user}
+    payload = AuthSessionResponse(user=UserResponse.model_validate(user)).model_dump(mode="json")
+    response = JSONResponse(content=payload)
+    set_access_token_cookie(response, token)
+    return response
 
 
 @router.get("/me", response_model=UserResponse)
@@ -169,7 +199,7 @@ async def get_me(user: User = Depends(get_current_user)) -> User:
 
 
 @router.post("/logout")
-async def logout() -> RedirectResponse:
-    response = RedirectResponse(url=settings.frontend_url)
-    response.delete_cookie("access_token")
+async def logout() -> JSONResponse:
+    response = JSONResponse(content={"ok": True})
+    clear_access_token_cookie(response)
     return response
