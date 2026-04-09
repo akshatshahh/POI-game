@@ -97,8 +97,10 @@ cp .env.example .env
 | `SECRET_KEY` | JWT signing key | `change-me-in-production` |
 | `FRONTEND_URL` | Frontend origin (CORS + redirects) | `http://localhost:5173` |
 | `BACKEND_URL` | Backend origin (OAuth callback) | `http://localhost:8000` |
-| `POI_SEARCH_RADIUS_METERS` | Spatial search radius | `200` |
-| `POI_MAX_CANDIDATES` | Max POI candidates per question | `10` |
+| `POI_SEARCH_RADIUS_METERS` | Spatial search radius | `500` |
+| `POI_MAX_CANDIDATES` | Max POI candidates per question | `15` |
+| `H3_RESOLUTION` | H3 hex grid resolution (7-12) | `9` |
+| `USE_H3_DEDUP` | Enable H3-based question de-duplication | `false` |
 
 ### Running Locally
 
@@ -158,6 +160,7 @@ See `docs/TESTING.md` for the full manual test checklist.
 | POST | `/admin/gps-points/bulk` | Admin | Import GPS points (JSON) |
 | POST | `/admin/gps-points/upload-csv` | Admin | Import GPS points (CSV) |
 | GET | `/admin/export/labels` | Admin | Export labels (CSV/JSON) |
+| GET | `/admin/poi-quality` | Admin | POI candidate density report |
 
 ## Scoring Algorithm (v1)
 
