@@ -14,6 +14,7 @@ from app.database import get_db
 from app.models import Answer, GpsPoint, Question, User
 from app.schemas import GpsPointBulkRequest, GpsPointBulkResponse
 from app.services.poi_service import get_nearby_pois
+from app.services.question_service import _lat_lon_to_h3
 
 router = APIRouter(prefix="/admin", tags=["admin"])
 
@@ -31,6 +32,7 @@ async def bulk_import_gps_points(
             lon=point.lon,
             timestamp=point.timestamp,
             source=point.source,
+            h3_cell=_lat_lon_to_h3(point.lat, point.lon),
         )
         db.add(gps)
         created += 1
@@ -59,7 +61,10 @@ async def upload_gps_csv(
             timestamp = datetime.datetime.fromisoformat(row["timestamp"])
         source = row.get("source", None)
 
-        gps = GpsPoint(lat=lat, lon=lon, timestamp=timestamp, source=source)
+        gps = GpsPoint(
+            lat=lat, lon=lon, timestamp=timestamp, source=source,
+            h3_cell=_lat_lon_to_h3(lat, lon),
+        )
         db.add(gps)
         created += 1
 
