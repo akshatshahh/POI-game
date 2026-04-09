@@ -56,12 +56,16 @@ async def get_next_question(
 
         question = await _get_or_create_question(db, gps_point.id)
 
+        ts = gps_point.timestamp
         return {
             "question_id": str(question.id),
             "gps_point": {
                 "lat": gps_point.lat,
                 "lon": gps_point.lon,
-                "timestamp": gps_point.timestamp.isoformat() if gps_point.timestamp else None,
+                "timestamp": ts.isoformat() if ts else None,
+                "weekday": ts.strftime("%A") if ts else None,
+                "local_date": ts.strftime("%B %d, %Y") if ts else None,
+                "local_time": ts.strftime("%I:%M %p") if ts else None,
             },
             "candidates": pois,
         }

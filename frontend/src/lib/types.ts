@@ -23,6 +23,9 @@ export interface GpsPoint {
   lat: number;
   lon: number;
   timestamp: string | null;
+  weekday: string | null;
+  local_date: string | null;
+  local_time: string | null;
 }
 
 export interface Question {

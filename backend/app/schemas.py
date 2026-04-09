@@ -84,6 +84,9 @@ class GpsPointResponse(BaseModel):
     lat: float
     lon: float
     timestamp: str | None
+    weekday: str | None = None
+    local_date: str | None = None
+    local_time: str | None = None
 
 
 class NextQuestionResponse(BaseModel):
