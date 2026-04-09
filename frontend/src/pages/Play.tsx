@@ -95,6 +95,7 @@ export function Play({ onScoreUpdate }: PlayProps) {
             candidates={question.candidates}
             selectedPoiId={selectedPoiId}
             onSelectPoi={setSelectedPoiId}
+            answered={!!feedback}
           />
         </div>
         <div className="game-sidebar">
@@ -103,6 +104,7 @@ export function Play({ onScoreUpdate }: PlayProps) {
             selectedPoiId={selectedPoiId}
             onSelectPoi={setSelectedPoiId}
             gpsPoint={question.gps_point}
+            answered={!!feedback}
           />
           {feedback ? (
             <div className="feedback-panel">

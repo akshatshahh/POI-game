@@ -36,6 +36,7 @@ interface GameMapProps {
   candidates: Poi[];
   selectedPoiId: string | null;
   onSelectPoi: (poiId: string) => void;
+  answered?: boolean;
 }
 
 function MapUpdater({ center }: { center: [number, number] }) {
@@ -46,7 +47,7 @@ function MapUpdater({ center }: { center: [number, number] }) {
   return null;
 }
 
-export function GameMap({ gpsPoint, candidates, selectedPoiId, onSelectPoi }: GameMapProps) {
+export function GameMap({ gpsPoint, candidates, selectedPoiId, onSelectPoi, answered = false }: GameMapProps) {
   const center: [number, number] = [gpsPoint.lat, gpsPoint.lon];
 
   return (
@@ -79,7 +80,7 @@ export function GameMap({ gpsPoint, candidates, selectedPoiId, onSelectPoi }: Ga
           <Popup>
             <strong>{poi.name}</strong>
             <br />
-            {poi.category} — {poi.distance_meters.toFixed(0)}m
+            {poi.category}{answered ? ` — ${poi.distance_meters.toFixed(0)}m` : ""}
           </Popup>
         </Marker>
       ))}

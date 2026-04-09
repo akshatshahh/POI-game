@@ -5,9 +5,10 @@ interface PoiListProps {
   selectedPoiId: string | null;
   onSelectPoi: (poiId: string) => void;
   gpsPoint: GpsPoint;
+  answered?: boolean;
 }
 
-export function PoiList({ candidates, selectedPoiId, onSelectPoi, gpsPoint }: PoiListProps) {
+export function PoiList({ candidates, selectedPoiId, onSelectPoi, gpsPoint, answered = false }: PoiListProps) {
   const hasTime = gpsPoint.weekday || gpsPoint.local_date || gpsPoint.local_time;
 
   return (
@@ -34,7 +35,9 @@ export function PoiList({ candidates, selectedPoiId, onSelectPoi, gpsPoint }: Po
               <span className="poi-name">{poi.name}</span>
               <span className="poi-category">{poi.category}</span>
             </div>
-            <span className="poi-distance">{poi.distance_meters.toFixed(0)}m</span>
+            {answered && (
+              <span className="poi-distance">{poi.distance_meters.toFixed(0)}m</span>
+            )}
           </button>
         ))}
       </div>
