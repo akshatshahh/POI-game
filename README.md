@@ -102,6 +102,7 @@ cp .env.example .env
 | `POI_MAX_CANDIDATES` | Max POI candidates per question | `8` |
 | `H3_RESOLUTION` | H3 hex grid resolution (7-12) | `9` |
 | `USE_H3_DEDUP` | Enable H3-based question de-duplication | `false` |
+| `RESTRICT_GPS_TO_LA` | Only serve GPS probes inside the Greater LA bbox ([`app/regions.py`](backend/app/regions.py)) | `true` |
 
 ### Running Locally
 
