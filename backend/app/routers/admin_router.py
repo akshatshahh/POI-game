@@ -13,6 +13,7 @@ from app.auth import require_admin
 from app.database import get_db
 from app.models import Answer, GpsPoint, Question, User
 from app.schemas import GpsPointBulkRequest, GpsPointBulkResponse
+from app.services.poi_service import get_nearby_pois
 
 router = APIRouter(prefix="/admin", tags=["admin"])
 
@@ -132,3 +133,40 @@ async def export_labels(
         media_type="text/csv",
         headers={"Content-Disposition": "attachment; filename=labels.csv"},
     )
+
+
+@router.get("/poi-quality")
+async def poi_quality_report(
+    _admin: User = Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Check candidate density and category diversity for each GPS point."""
+    result = await db.execute(select(GpsPoint).order_by(GpsPoint.created_at.asc()))
+    gps_points = result.scalars().all()
+
+    report: list[dict] = []
+    total_candidates = 0
+    sparse_count = 0
+
+    for gp in gps_points:
+        pois = await get_nearby_pois(db, lat=gp.lat, lon=gp.lon)
+        categories = {p["category"] for p in pois}
+        count = len(pois)
+        total_candidates += count
+        if count < 3:
+            sparse_count += 1
+        report.append({
+            "gps_point_id": str(gp.id),
+            "lat": gp.lat,
+            "lon": gp.lon,
+            "candidate_count": count,
+            "unique_categories": len(categories),
+            "categories": sorted(categories),
+        })
+
+    return {
+        "total_gps_points": len(gps_points),
+        "sparse_points": sparse_count,
+        "avg_candidates": round(total_candidates / max(len(gps_points), 1), 1),
+        "points": report,
+    }
