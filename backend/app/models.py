@@ -49,6 +49,7 @@ class GpsPoint(Base):
         DateTime(timezone=True), nullable=True
     )
     source: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    h3_cell: Mapped[str | None] = mapped_column(String(20), nullable=True, index=True)
     created_at: Mapped[datetime.datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
     )
@@ -63,6 +64,7 @@ class Question(Base):
     gps_point_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("gps_points.id"), nullable=False, index=True
     )
+    h3_cell: Mapped[str | None] = mapped_column(String(20), nullable=True, index=True)
     status: Mapped[str] = mapped_column(String(50), default="active", server_default="active")
     created_at: Mapped[datetime.datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()

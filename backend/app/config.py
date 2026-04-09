@@ -10,6 +10,8 @@ class Settings(BaseSettings):
     backend_url: str = "http://localhost:8000"
     poi_search_radius_meters: int = 500
     poi_max_candidates: int = 15
+    h3_resolution: int = 9
+    use_h3_dedup: bool = False
 
     model_config = {"env_file": ".env", "env_file_encoding": "utf-8"}
 
