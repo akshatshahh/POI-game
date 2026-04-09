@@ -97,8 +97,8 @@ cp .env.example .env
 | `SECRET_KEY` | JWT signing key | `change-me-in-production` |
 | `FRONTEND_URL` | Frontend origin (CORS + redirects) | `http://localhost:5173` |
 | `BACKEND_URL` | Backend origin (OAuth callback) | `http://localhost:8000` |
-| `POI_SEARCH_RADIUS_METERS` | Spatial search radius | `500` |
-| `POI_MAX_CANDIDATES` | Max POI candidates per question | `15` |
+| `POI_SEARCH_RADIUS_METERS` | Spatial search radius | `300` |
+| `POI_MAX_CANDIDATES` | Max POI candidates per question | `8` |
 | `H3_RESOLUTION` | H3 hex grid resolution (7-12) | `9` |
 | `USE_H3_DEDUP` | Enable H3-based question de-duplication | `false` |
 
