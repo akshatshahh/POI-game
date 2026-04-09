@@ -27,10 +27,13 @@ async def test_me_endpoint_authenticated(client: AsyncClient, test_user: User) -
 async def test_google_login_redirects(client: AsyncClient) -> None:
     response = await client.get("/auth/google/login", follow_redirects=False)
     assert response.status_code == 307
-    assert "accounts.google.com" in response.headers.get("location", "")
+    loc = response.headers.get("location", "")
+    assert "accounts.google.com" in loc
+    assert "state=" in loc
 
 
 @pytest.mark.asyncio
 async def test_logout_clears_cookie(client: AsyncClient) -> None:
-    response = await client.post("/auth/logout", follow_redirects=False)
-    assert response.status_code == 307
+    response = await client.post("/auth/logout")
+    assert response.status_code == 200
+    assert response.json() == {"ok": True}

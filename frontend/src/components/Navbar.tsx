@@ -1,4 +1,5 @@
 import { Link } from "react-router-dom";
+import { safeAvatarUrl } from "../lib/api";
 import type { User } from "../lib/types";
 
 interface NavbarProps {
@@ -7,6 +8,7 @@ interface NavbarProps {
 }
 
 export function Navbar({ user, onLogout }: NavbarProps) {
+  const avatar = user ? safeAvatarUrl(user.avatar_url) : null;
   return (
     <nav className="navbar">
       <div className="navbar-brand">
@@ -22,8 +24,13 @@ export function Navbar({ user, onLogout }: NavbarProps) {
               Leaderboard
             </Link>
             <div className="navbar-user">
-              {user.avatar_url && (
-                <img src={user.avatar_url} alt="" className="avatar" />
+              {avatar && (
+                <img
+                  src={avatar}
+                  alt=""
+                  className="avatar"
+                  referrerPolicy="no-referrer"
+                />
               )}
               <span className="user-name">{user.display_name}</span>
               <span className="user-score">{user.score} pts</span>

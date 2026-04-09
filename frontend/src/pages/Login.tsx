@@ -1,6 +1,6 @@
-import { type FormEvent, useState } from "react";
-import { Link } from "react-router-dom";
-import { api, getGoogleLoginUrl, setToken } from "../lib/api";
+import { type FormEvent, useEffect, useState } from "react";
+import { Link, useSearchParams } from "react-router-dom";
+import { api, getGoogleLoginUrl } from "../lib/api";
 import type { User } from "../lib/types";
 
 interface LoginProps {
@@ -8,10 +8,18 @@ interface LoginProps {
 }
 
 export function Login({ onAuth }: LoginProps) {
+  const [searchParams, setSearchParams] = useSearchParams();
   const [usernameOrEmail, setUsernameOrEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+
+  useEffect(() => {
+    if (searchParams.get("error") === "oauth") {
+      setError("Google sign-in failed or was cancelled. Please try again.");
+      setSearchParams({}, { replace: true });
+    }
+  }, [searchParams, setSearchParams]);
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
@@ -24,11 +32,10 @@ export function Login({ onAuth }: LoginProps) {
 
     setSubmitting(true);
     try {
-      const res = await api.post<{ token: string; user: User }>(
+      await api.post<{ user: User }>(
         "/auth/login",
         { username_or_email: usernameOrEmail.trim(), password },
       );
-      setToken(res.token);
       onAuth();
     } catch {
       setError("Invalid username/email or password");

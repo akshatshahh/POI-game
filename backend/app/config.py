@@ -1,7 +1,11 @@
-from pydantic_settings import BaseSettings
+from pydantic import field_validator, model_validator
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
+    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
+
+    environment: str = "development"
     database_url: str = "postgresql+asyncpg://postgres:postgres@localhost:5432/poi_game"
     google_client_id: str = ""
     google_client_secret: str = ""
@@ -13,7 +17,21 @@ class Settings(BaseSettings):
     h3_resolution: int = 9
     use_h3_dedup: bool = False
 
-    model_config = {"env_file": ".env", "env_file_encoding": "utf-8"}
+    @field_validator("secret_key")
+    @classmethod
+    def secret_key_not_empty(cls, v: str) -> str:
+        if not v or not v.strip():
+            raise ValueError("SECRET_KEY must be set")
+        return v
+
+    @model_validator(mode="after")
+    def validate_production_secrets(self) -> "Settings":
+        if self.environment.lower() == "production":
+            if len(self.secret_key) < 32:
+                raise ValueError("SECRET_KEY must be at least 32 characters when ENVIRONMENT=production")
+            if not self.google_client_id or not self.google_client_secret:
+                raise ValueError("Google OAuth credentials are required when ENVIRONMENT=production")
+        return self
 
 
 settings = Settings()

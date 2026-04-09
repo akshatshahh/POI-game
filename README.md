@@ -91,6 +91,7 @@ cp .env.example .env
 
 | Variable | Description | Default |
 |----------|-------------|---------|
+| `ENVIRONMENT` | Set to `production` to enforce long `SECRET_KEY`, require Google OAuth, and disable `/docs` | `development` |
 | `DATABASE_URL` | Async Postgres connection string | `postgresql+asyncpg://postgres:postgres@localhost:5432/poi_game` |
 | `GOOGLE_CLIENT_ID` | Google OAuth client ID | (required) |
 | `GOOGLE_CLIENT_SECRET` | Google OAuth client secret | (required) |
@@ -152,7 +153,7 @@ See `docs/TESTING.md` for the full manual test checklist.
 | GET | `/auth/google/login` | No | Start Google OAuth flow |
 | GET | `/auth/google/callback` | No | OAuth callback (internal) |
 | GET | `/auth/me` | Yes | Current user profile |
-| POST | `/auth/logout` | No | Clear auth cookie |
+| POST | `/auth/logout` | No | Clear HttpOnly session cookie (JSON `{"ok":true}`) |
 | GET | `/pois/nearby` | No | Query nearby POIs by lat/lon |
 | GET | `/game/next-question` | Yes | Get next question for user |
 | POST | `/game/answer` | Yes | Submit POI selection |
@@ -161,6 +162,14 @@ See `docs/TESTING.md` for the full manual test checklist.
 | POST | `/admin/gps-points/upload-csv` | Admin | Import GPS points (CSV) |
 | GET | `/admin/export/labels` | Admin | Export labels (CSV/JSON) |
 | GET | `/admin/poi-quality` | Admin | POI candidate density report |
+
+## Security notes
+
+- **Sessions**: After login (password, register, or Google), the JWT is stored in an **HttpOnly** cookie (`access_token`). The response body returns only `{ "user": ... }` — no token in JSON or URL query strings.
+- **Google OAuth**: Uses a random `state` parameter and a short-lived HttpOnly cookie to mitigate login CSRF. Use **HTTPS** in production so `SameSite=None; Secure` cookies work for cross-origin SPA + API hosts.
+- **CORS**: `FRONTEND_URL` must exactly match the browser origin (scheme + host + port).
+- **Production**: Set `ENVIRONMENT=production`, `SECRET_KEY` (32+ random bytes), and real Google credentials. Never commit `.env` or OAuth client JSON (see `.gitignore`).
+- **Still recommended**: rate limiting (e.g. reverse proxy), WAF, `pip audit` / `npm audit`, structured security logging, and rotating secrets after any leak.
 
 ## Scoring Algorithm (v1)
 

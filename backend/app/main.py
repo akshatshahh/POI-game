@@ -22,16 +22,16 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     await engine.dispose()
 
 
-_is_production = settings.backend_url.startswith("https")
+_docs_disabled = settings.environment.lower() == "production"
 
 app = FastAPI(
     title="POI Game API",
     description="Gamified POI attribution labeling tool for USC IMSC",
     version="0.1.0",
     lifespan=lifespan,
-    docs_url=None if _is_production else "/docs",
-    redoc_url=None if _is_production else "/redoc",
-    openapi_url=None if _is_production else "/openapi.json",
+    docs_url=None if _docs_disabled else "/docs",
+    redoc_url=None if _docs_disabled else "/redoc",
+    openapi_url=None if _docs_disabled else "/openapi.json",
 )
 
 app.add_middleware(

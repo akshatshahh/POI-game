@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { api, clearToken, setToken } from "../lib/api";
+import { api, logoutSession } from "../lib/api";
 import type { User } from "../lib/types";
 
 export function useAuth() {
@@ -18,19 +18,16 @@ export function useAuth() {
   }, []);
 
   useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const token = params.get("token");
-    if (token) {
-      setToken(token);
-      window.history.replaceState({}, "", window.location.pathname);
-    }
     fetchUser();
   }, [fetchUser]);
 
-  const logout = useCallback(() => {
-    clearToken();
-    setUser(null);
-    window.location.href = "/";
+  const logout = useCallback(async () => {
+    try {
+      await logoutSession();
+    } finally {
+      setUser(null);
+      window.location.href = "/";
+    }
   }, []);
 
   return { user, loading, logout, refetchUser: fetchUser };
