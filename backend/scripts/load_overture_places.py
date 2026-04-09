@@ -167,7 +167,7 @@ def main():
         ST_Y(ST_Centroid(geometry)) AS lat,
         ST_X(ST_Centroid(geometry)) AS lon,
         ST_AsText(geometry) AS wkt
-    FROM read_parquet('s3://overturemaps-us-west-2/release/2024-07-22.0/theme=places/type=place/*')
+    FROM read_parquet('s3://overturemaps-us-west-2/release/2026-02-18.0/theme=places/type=place/*')
     WHERE bbox.xmin >= {lon_min}
       AND bbox.xmax <= {lon_max}
       AND bbox.ymin >= {lat_min}
