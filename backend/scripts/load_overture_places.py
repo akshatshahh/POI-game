@@ -2,8 +2,8 @@
 """Load Overture Maps places into the local `places` table.
 
 Usage:
-    python scripts/load_overture_places.py           # default USC bounding box
-    python scripts/load_overture_places.py --bbox "-118.30,34.01,-118.27,34.03"
+    python scripts/load_overture_places.py           # default Greater LA bounding box
+    python scripts/load_overture_places.py --bbox "-118.67,33.70,-118.08,34.34"
 
 Requires: duckdb, asyncpg (or psycopg2), sqlalchemy
 Reads DATABASE_URL from the backend .env (via app.config).
@@ -21,7 +21,9 @@ import os
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
-# Broad Overture category set for a dense, realistic campus-area POI map
+from app.regions import LOS_ANGELES_BBOX
+
+# Broad Overture category set for a dense, realistic metro POI map
 EXPANDED_CATEGORIES = [
     "restaurant",
     "fast_food",
@@ -101,16 +103,13 @@ EXPANDED_CATEGORIES = [
     "townhall",
 ]
 
-USC_BBOX = (-118.295, 34.015, -118.275, 34.030)
-
-
 def parse_args():
     p = argparse.ArgumentParser(description="Load Overture places into Postgres")
     p.add_argument(
         "--bbox",
         type=str,
         default=None,
-        help="lon_min,lat_min,lon_max,lat_max  (default: USC campus area)",
+        help="lon_min,lat_min,lon_max,lat_max  (default: Greater Los Angeles)",
     )
     p.add_argument(
         "--radius-km",
@@ -135,7 +134,7 @@ def build_bbox(args):
             -118.2851 + deg_lon,
             34.0224 + deg_lat,
         )
-    return USC_BBOX
+    return LOS_ANGELES_BBOX
 
 
 def main():

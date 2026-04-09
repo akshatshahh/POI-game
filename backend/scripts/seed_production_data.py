@@ -2,7 +2,7 @@
 """Seed the database with real Overture Maps POIs and realistic GPS visit points.
 
 This is the canonical data pipeline for the POI game. It:
-  1. Queries Overture Maps S3 parquet (via DuckDB) for real places around USC.
+  1. Queries Overture Maps S3 parquet (via DuckDB) for real places in the LA study area.
   2. Upserts them into the local Postgres `places` table.
   3. Generates GPS "visit" points by sampling real POI locations with
      GPS-realistic jitter and time-of-day distributions.
@@ -12,7 +12,7 @@ This is the canonical data pipeline for the POI game. It:
 Usage:
     cd backend && source .venv/bin/activate
     python scripts/seed_production_data.py
-    python scripts/seed_production_data.py --bbox "-118.30,34.01,-118.27,34.04"
+    python scripts/seed_production_data.py --bbox "-118.67,33.70,-118.08,34.34"
     python scripts/seed_production_data.py --gps-count 50
 """
 
@@ -28,11 +28,13 @@ import uuid
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
+from app.regions import LOS_ANGELES_BBOX
+
 logging.basicConfig(level=logging.INFO, format="%(asctime)s  %(message)s")
 log = logging.getLogger(__name__)
 
-# USC campus + surrounding neighborhood
-DEFAULT_BBOX = (-118.300, 34.010, -118.270, 34.040)
+# Default: Greater Los Angeles (same bounds as app.regions / Phase 1 study area)
+DEFAULT_BBOX = LOS_ANGELES_BBOX
 
 # Time-of-day distributions per category bucket (hour weights)
 # Reflects real-world visitation patterns

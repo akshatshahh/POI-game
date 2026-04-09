@@ -16,6 +16,8 @@ class Settings(BaseSettings):
     poi_max_candidates: int = 8
     h3_resolution: int = 9
     use_h3_dedup: bool = False
+    # When true, only offer questions whose GPS probe lies in LOS_ANGELES_BBOX (see app.regions)
+    restrict_gps_to_la: bool = True
 
     @field_validator("secret_key")
     @classmethod

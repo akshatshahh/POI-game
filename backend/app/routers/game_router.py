@@ -8,11 +8,17 @@ from app.auth import get_current_user
 from app.database import get_db
 from app.models import Answer, GpsPoint, Question, User
 from app.schemas import AnswerRequest, AnswerResponse, NextQuestionResponse
-from app.services.poi_service import get_nearby_pois
-from app.services.question_service import get_next_question
+from app.services.question_service import (
+    build_candidates_excluding_used_pois,
+    fetch_user_used_poi_ids,
+    get_next_question,
+)
 from app.services.scoring_service import compute_score, retroactive_score_update
 
 router = APIRouter(prefix="/game", tags=["game"])
+
+# Must match default min_candidates in get_next_question
+_MIN_GAME_CANDIDATES = 3
 
 
 @router.get("/next-question", response_model=NextQuestionResponse)
@@ -56,7 +62,14 @@ async def submit_answer(
     )
     gps_point = gp_result.scalar_one()
 
-    candidates = await get_nearby_pois(db, lat=gps_point.lat, lon=gps_point.lon)
+    excluded = await fetch_user_used_poi_ids(db, user.id)
+    candidates = await build_candidates_excluding_used_pois(
+        db,
+        gps_point.lat,
+        gps_point.lon,
+        excluded,
+        _MIN_GAME_CANDIDATES,
+    )
     candidate_map = {c["id"]: c for c in candidates}
     if body.selected_poi_id not in candidate_map:
         raise HTTPException(
