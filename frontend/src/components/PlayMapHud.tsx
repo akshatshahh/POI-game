@@ -10,6 +10,7 @@ interface PlayMapHudProps {
   error: string | null;
   onSubmit: () => void;
   onNextQuestion: () => void;
+  onRecenter: () => void;
 }
 
 export function PlayMapHud({
@@ -22,15 +23,16 @@ export function PlayMapHud({
   error,
   onSubmit,
   onNextQuestion,
+  onRecenter,
 }: PlayMapHudProps) {
   const hasTime = gpsPoint.weekday || gpsPoint.local_date || gpsPoint.local_time;
   const selectedPoi = candidates.find((c) => c.id === selectedPoiId) ?? null;
 
   return (
     <div className="play-hud">
-      {/* Top overlay: single compact row */}
+      {/* Top overlay: single compact row — click to recenter map */}
       <div className="play-hud-top">
-        <div className="hud-top-row">
+        <button className="hud-top-row" onClick={onRecenter} title="Tap to re-center map on the question">
           {hasTime && (
             <span className="hud-visit-chip">
               {gpsPoint.weekday && <>{gpsPoint.weekday}</>}
@@ -39,7 +41,8 @@ export function PlayMapHud({
             </span>
           )}
           <span className="hud-prompt">Which POI was this person most likely visiting?</span>
-        </div>
+          <span className="hud-recenter-icon" aria-label="Recenter">⊕</span>
+        </button>
       </div>
 
       {/* Bottom overlay: selection + submit / feedback */}

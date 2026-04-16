@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { GameMap } from "../components/GameMap";
 import { PlayMapHud } from "../components/PlayMapHud";
 import { api } from "../lib/api";
@@ -15,6 +15,7 @@ export function Play({ onScoreUpdate }: PlayProps) {
   const [feedback, setFeedback] = useState<AnswerResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const recenterRef = useRef<() => void>(() => {});
 
   const fetchQuestion = useCallback(async () => {
     setLoading(true);
@@ -94,6 +95,7 @@ export function Play({ onScoreUpdate }: PlayProps) {
         selectedPoiId={selectedPoiId}
         onSelectPoi={setSelectedPoiId}
         answered={!!feedback}
+        onMapReady={(fn) => { recenterRef.current = fn; }}
       />
       <PlayMapHud
         gpsPoint={question.gps_point}
@@ -105,6 +107,7 @@ export function Play({ onScoreUpdate }: PlayProps) {
         error={error}
         onSubmit={handleSubmit}
         onNextQuestion={fetchQuestion}
+        onRecenter={() => recenterRef.current?.()}
       />
     </div>
   );
