@@ -32,7 +32,7 @@ export function PlayMapHud({
     <div className="play-hud">
       {/* Top overlay: single compact row — click to recenter map */}
       <div className="play-hud-top">
-        <button className="hud-top-row" onClick={onRecenter} title="Tap to re-center map on the question">
+        <button type="button" className="hud-top-row" onClick={onRecenter} aria-label="Re-center map on the question">
           {hasTime && (
             <span className="hud-visit-chip">
               {gpsPoint.weekday && <>{gpsPoint.weekday}</>}
@@ -41,7 +41,7 @@ export function PlayMapHud({
             </span>
           )}
           <span className="hud-prompt">Which POI was this person most likely visiting?</span>
-          <span className="hud-recenter-icon" aria-label="Recenter">⊕</span>
+          <span className="hud-recenter-icon" aria-hidden="true">⊕</span>
         </button>
       </div>
 

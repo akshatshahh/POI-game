@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { GameMap } from "../components/GameMap";
 import { PlayMapHud } from "../components/PlayMapHud";
 import { api } from "../lib/api";
@@ -95,7 +95,7 @@ export function Play({ onScoreUpdate }: PlayProps) {
         selectedPoiId={selectedPoiId}
         onSelectPoi={setSelectedPoiId}
         answered={!!feedback}
-        onMapReady={(fn) => { recenterRef.current = fn; }}
+        onMapReady={useMemo(() => (fn: () => void) => { recenterRef.current = fn; }, [])}
       />
       <PlayMapHud
         gpsPoint={question.gps_point}

@@ -1,4 +1,5 @@
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-router-dom";
+import { ErrorBoundary } from "./components/ErrorBoundary";
 import { Navbar } from "./components/Navbar";
 import { Home } from "./pages/Home";
 import { Play } from "./pages/Play";
@@ -51,9 +52,11 @@ function AppShell({ user, loading, logout, refetchUser }: ReturnType<typeof useA
 function App() {
   const auth = useAuth();
   return (
-    <BrowserRouter>
-      <AppShell {...auth} />
-    </BrowserRouter>
+    <ErrorBoundary>
+      <BrowserRouter>
+        <AppShell {...auth} />
+      </BrowserRouter>
+    </ErrorBoundary>
   );
 }
 

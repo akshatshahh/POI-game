@@ -1,5 +1,6 @@
 """Auth endpoints: local register/login + Google OAuth2."""
 
+import logging
 import secrets
 from urllib.parse import urlencode
 
@@ -7,6 +8,7 @@ import httpx
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import JSONResponse, RedirectResponse
 from sqlalchemy import or_, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth import (
@@ -29,11 +31,15 @@ from app.schemas import (
     UserResponse,
 )
 
+logger = logging.getLogger(__name__)
+
 router = APIRouter(prefix="/auth", tags=["auth"])
 
 GOOGLE_AUTH_URL = "https://accounts.google.com/o/oauth2/v2/auth"
 GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token"
 GOOGLE_USERINFO_URL = "https://www.googleapis.com/oauth2/v2/userinfo"
+
+_OAUTH_HTTP_TIMEOUT = 10.0
 
 
 @router.get("/google/login")
@@ -80,29 +86,37 @@ async def google_callback(
 
     redirect_uri = f"{settings.backend_url}/auth/google/callback"
 
-    async with httpx.AsyncClient() as client:
-        token_resp = await client.post(
-            GOOGLE_TOKEN_URL,
-            data={
-                "code": code,
-                "client_id": settings.google_client_id,
-                "client_secret": settings.google_client_secret,
-                "redirect_uri": redirect_uri,
-                "grant_type": "authorization_code",
-            },
-        )
-        token_resp.raise_for_status()
-        tokens = token_resp.json()
+    try:
+        async with httpx.AsyncClient(timeout=_OAUTH_HTTP_TIMEOUT) as client:
+            token_resp = await client.post(
+                GOOGLE_TOKEN_URL,
+                data={
+                    "code": code,
+                    "client_id": settings.google_client_id,
+                    "client_secret": settings.google_client_secret,
+                    "redirect_uri": redirect_uri,
+                    "grant_type": "authorization_code",
+                },
+            )
+            token_resp.raise_for_status()
+            tokens = token_resp.json()
 
-        userinfo_resp = await client.get(
-            GOOGLE_USERINFO_URL,
-            headers={"Authorization": f"Bearer {tokens['access_token']}"},
-        )
-        userinfo_resp.raise_for_status()
-        userinfo = userinfo_resp.json()
+            userinfo_resp = await client.get(
+                GOOGLE_USERINFO_URL,
+                headers={"Authorization": f"Bearer {tokens['access_token']}"},
+            )
+            userinfo_resp.raise_for_status()
+            userinfo = userinfo_resp.json()
+    except (httpx.HTTPStatusError, httpx.TimeoutException, httpx.RequestError) as exc:
+        logger.warning("Google OAuth exchange failed: %s", exc)
+        return fail_redirect()
 
-    google_id = userinfo["id"]
-    email = userinfo["email"]
+    google_id = userinfo.get("id")
+    email = userinfo.get("email")
+    if not google_id or not email:
+        logger.warning("Google userinfo missing id or email")
+        return fail_redirect()
+
     display_name = userinfo.get("name", email)
     avatar_url = userinfo.get("picture")
 
@@ -110,14 +124,27 @@ async def google_callback(
     user = result.scalar_one_or_none()
 
     if user is None:
-        user = User(
-            google_id=google_id,
-            email=email,
-            display_name=display_name,
-            avatar_url=avatar_url,
-        )
-        db.add(user)
-        await db.flush()
+        # Check if email already taken by a local account
+        email_result = await db.execute(select(User).where(User.email == email))
+        existing_email_user = email_result.scalar_one_or_none()
+        if existing_email_user:
+            existing_email_user.google_id = google_id
+            existing_email_user.display_name = display_name
+            existing_email_user.avatar_url = avatar_url
+            user = existing_email_user
+        else:
+            user = User(
+                google_id=google_id,
+                email=email,
+                display_name=display_name,
+                avatar_url=avatar_url,
+            )
+            db.add(user)
+        try:
+            await db.flush()
+        except IntegrityError:
+            await db.rollback()
+            return fail_redirect()
     else:
         user.display_name = display_name
         user.avatar_url = avatar_url
@@ -155,7 +182,14 @@ async def register(
         password_hash=get_password_hash(body.password),
     )
     db.add(user)
-    await db.flush()
+    try:
+        await db.flush()
+    except IntegrityError:
+        await db.rollback()
+        raise HTTPException(
+            status_code=409,
+            detail="Could not create account with the provided username or email",
+        )
 
     token = create_access_token(user.id)
     payload = AuthSessionResponse(user=UserResponse.model_validate(user)).model_dump(mode="json")
