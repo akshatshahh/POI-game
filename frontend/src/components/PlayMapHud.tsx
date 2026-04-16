@@ -28,20 +28,18 @@ export function PlayMapHud({
 
   return (
     <div className="play-hud">
-      {/* Top overlay: visit context + prompt */}
+      {/* Top overlay: single compact row */}
       <div className="play-hud-top">
-        {hasTime && (
-          <div className="hud-visit-time">
-            <span className="hud-visit-label">Visit recorded</span>
-            <span className="hud-visit-value">
-              {gpsPoint.weekday}
-              {gpsPoint.local_date ? `, ${gpsPoint.local_date}` : ""}
-              {gpsPoint.local_time ? ` at ${gpsPoint.local_time}` : ""}
+        <div className="hud-top-row">
+          {hasTime && (
+            <span className="hud-visit-chip">
+              {gpsPoint.weekday && <>{gpsPoint.weekday}</>}
+              {gpsPoint.local_date && <>, {gpsPoint.local_date}</>}
+              {gpsPoint.local_time && <> · {gpsPoint.local_time}</>}
             </span>
-          </div>
-        )}
-        <p className="hud-prompt">Which POI was this person most likely visiting?</p>
-        <p className="hud-hint">Tap a marker on the map to select</p>
+          )}
+          <span className="hud-prompt">Which POI was this person most likely visiting?</span>
+        </div>
       </div>
 
       {/* Bottom overlay: selection + submit / feedback */}

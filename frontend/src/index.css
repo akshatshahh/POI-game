@@ -153,8 +153,8 @@ a {
   max-width: none;
   margin: 0;
   padding: 0;
-  /* fill viewport below navbar (navbar ~56px, adjust if needed) */
-  height: calc(100dvh - 56px);
+  /* navbar is ~57px (0.75rem*2 padding + ~1.25rem line-height icon ≈ 57px); use dvh for mobile browsers */
+  height: calc(100dvh - 57px);
   display: flex;
   flex-direction: column;
 }
@@ -295,122 +295,119 @@ a {
   justify-content: space-between;
 }
 
-/* Top strip */
+/* Top strip — single compact pill */
 .play-hud-top {
   pointer-events: auto;
-  margin: 0.75rem 0.75rem 0;
-  background: rgba(15, 23, 42, 0.88);
+  margin: 0.5rem 0.5rem 0;
+}
+
+.hud-top-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  background: rgba(15, 23, 42, 0.85);
   backdrop-filter: blur(6px);
   border: 1px solid var(--color-border);
-  border-radius: var(--radius-lg);
-  padding: 0.75rem 1rem;
-  display: flex;
-  flex-direction: column;
-  gap: 0.25rem;
+  border-radius: 999px;
+  padding: 0.3rem 0.75rem;
+  max-width: 100%;
 }
 
-.hud-visit-time {
-  display: flex;
-  gap: 0.5rem;
-  align-items: baseline;
-}
-
-.hud-visit-label {
-  font-size: 0.7rem;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  color: var(--color-text-muted);
-}
-
-.hud-visit-value {
-  font-size: 0.875rem;
-  font-weight: 600;
-  color: var(--color-text);
+.hud-visit-chip {
+  font-size: 0.72rem;
+  font-weight: 500;
+  color: var(--color-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 200px;
 }
 
 .hud-prompt {
-  font-size: 0.95rem;
+  font-size: 0.78rem;
   font-weight: 600;
   color: var(--color-text);
   margin: 0;
-}
-
-.hud-hint {
-  font-size: 0.78rem;
-  color: var(--color-text-muted);
-  margin: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 /* Bottom strip */
 .play-hud-bottom {
   pointer-events: auto;
-  margin: 0 0.75rem 0.75rem;
+  margin: 0 0.5rem 0.5rem;
   background: rgba(15, 23, 42, 0.92);
   backdrop-filter: blur(8px);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-lg);
-  padding: 0.875rem 1rem;
+  padding: 0.6rem 0.75rem;
   display: flex;
   flex-direction: column;
-  gap: 0.6rem;
+  gap: 0.4rem;
+  /* safe area for iPhone home indicator */
+  padding-bottom: max(0.6rem, env(safe-area-inset-bottom));
 }
 
 .hud-selection {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
+  gap: 0.4rem;
   flex-wrap: wrap;
 }
 
 .hud-selection-label {
-  font-size: 0.75rem;
+  font-size: 0.7rem;
   color: var(--color-text-muted);
 }
 
 .hud-selection-name {
   font-weight: 600;
-  font-size: 0.9rem;
+  font-size: 0.82rem;
 }
 
 .hud-selection-cat {
-  font-size: 0.75rem;
+  font-size: 0.7rem;
   color: var(--color-text-muted);
 }
 
 .hud-submit {
   width: 100%;
+  padding: 0.55rem 1rem;
+  font-size: 0.9rem;
 }
 
 .hud-feedback {
   display: flex;
   flex-direction: column;
-  gap: 0.4rem;
+  gap: 0.25rem;
 }
 
 .hud-feedback-score {
   text-align: center;
-  font-size: 1.5rem;
+  font-size: 1.25rem;
   font-weight: 700;
   color: var(--color-success);
 }
 
 .hud-feedback-hint {
   text-align: center;
-  font-size: 0.78rem;
+  font-size: 0.72rem;
   color: var(--color-text-muted);
   margin: 0;
 }
 
 .hud-feedback-poi {
   text-align: center;
-  font-size: 0.85rem;
+  font-size: 0.78rem;
   color: var(--color-text-muted);
   margin: 0;
 }
 
 .hud-error {
   color: var(--color-error);
-  font-size: 0.85rem;
+  font-size: 0.78rem;
   text-align: center;
   margin: 0;
 }
@@ -519,11 +516,24 @@ a {
 /* Play page: handled by .main-content--play on App.tsx */
 
 @media (max-width: 768px) {
-  /* Full-page map stays full-page on mobile; HUD panels stack naturally */
-  .play-hud-top,
+  /* Shrink pill text on narrow screens */
+  .hud-visit-chip {
+    max-width: 130px;
+  }
+
+  .hud-prompt {
+    font-size: 0.72rem;
+  }
+
+  .hud-top-row {
+    padding: 0.25rem 0.6rem;
+    gap: 0.35rem;
+  }
+
   .play-hud-bottom {
-    margin-left: 0.5rem;
-    margin-right: 0.5rem;
+    margin-left: 0.4rem;
+    margin-right: 0.4rem;
+    margin-bottom: 0.4rem;
   }
 }
 
@@ -728,4 +738,23 @@ a {
   display: flex;
   gap: 0.5rem;
   align-items: center;
+}
+
+/* Navbar mobile: shrink padding + truncate long names */
+@media (max-width: 600px) {
+  .navbar {
+    padding: 0.5rem 0.75rem;
+  }
+
+  .navbar-brand a {
+    font-size: 1rem;
+  }
+
+  .user-name {
+    display: none;
+  }
+
+  .nav-link {
+    font-size: 0.8rem;
+  }
 }
