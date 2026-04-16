@@ -1,6 +1,8 @@
 """Service for selecting and creating game questions."""
 
+import datetime
 import uuid
+import zoneinfo
 
 import h3
 from sqlalchemy import func, select
@@ -10,6 +12,15 @@ from app.config import settings
 from app.models import Answer, GpsPoint, Question
 from app.regions import point_in_los_angeles
 from app.services.poi_service import get_nearby_pois
+
+_LA_TZ = zoneinfo.ZoneInfo("America/Los_Angeles")
+
+
+def _to_la_time(ts: datetime.datetime) -> datetime.datetime:
+    """Convert a naive UTC datetime (as stored in DB) to LA local time."""
+    if ts.tzinfo is None:
+        ts = ts.replace(tzinfo=datetime.timezone.utc)
+    return ts.astimezone(_LA_TZ)
 
 
 def _lat_lon_to_h3(lat: float, lon: float) -> str:
@@ -168,15 +179,16 @@ async def _next_question_h3(
 
 def _build_response(question: Question, gps_point: GpsPoint, pois: list[dict]) -> dict:
     ts = gps_point.timestamp
+    local_ts = _to_la_time(ts) if ts else None
     return {
         "question_id": str(question.id),
         "gps_point": {
             "lat": gps_point.lat,
             "lon": gps_point.lon,
             "timestamp": ts.isoformat() if ts else None,
-            "weekday": ts.strftime("%A") if ts else None,
-            "local_date": ts.strftime("%B %d, %Y") if ts else None,
-            "local_time": ts.strftime("%I:%M %p") if ts else None,
+            "weekday": local_ts.strftime("%A") if local_ts else None,
+            "local_date": local_ts.strftime("%B %d, %Y") if local_ts else None,
+            "local_time": local_ts.strftime("%I:%M %p") if local_ts else None,
         },
         "candidates": pois,
     }

@@ -62,8 +62,8 @@ class RegisterRequest(BaseModel):
 
 
 class LoginRequest(BaseModel):
-    username_or_email: str
-    password: str
+    username_or_email: str = Field(..., min_length=1, max_length=320)
+    password: str = Field(..., min_length=1, max_length=128)
 
 
 class AuthSessionResponse(BaseModel):
@@ -98,7 +98,7 @@ class NextQuestionResponse(BaseModel):
 
 class AnswerRequest(BaseModel):
     question_id: uuid.UUID
-    selected_poi_id: str
+    selected_poi_id: str = Field(..., min_length=1, max_length=255)
 
 
 class AnswerResponse(BaseModel):
@@ -120,10 +120,10 @@ class LeaderboardEntry(BaseModel):
 
 
 class GpsPointInput(BaseModel):
-    lat: float
-    lon: float
+    lat: float = Field(..., ge=-90, le=90)
+    lon: float = Field(..., ge=-180, le=180)
     timestamp: datetime.datetime | None = None
-    source: str | None = None
+    source: str | None = Field(None, max_length=255)
 
 
 class GpsPointBulkRequest(BaseModel):

@@ -8,6 +8,7 @@ from sqlalchemy import (
     Integer,
     String,
     Text,
+    UniqueConstraint,
     func,
 )
 from sqlalchemy.dialects.postgresql import UUID
@@ -76,6 +77,9 @@ class Question(Base):
 
 class Answer(Base):
     __tablename__ = "answers"
+    __table_args__ = (
+        UniqueConstraint("user_id", "question_id", name="uq_answers_user_question"),
+    )
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     question_id: Mapped[uuid.UUID] = mapped_column(
