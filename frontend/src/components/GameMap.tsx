@@ -41,16 +41,40 @@ interface GameMapProps {
   onMapReady?: (recenter: () => void) => void;
 }
 
-function MapUpdater({ lat, lon, onMapReady }: { lat: number; lon: number; onMapReady?: (fn: () => void) => void }) {
+function MapUpdater({ lat, lon, candidates, onMapReady }: {
+  lat: number;
+  lon: number;
+  candidates: Poi[];
+  onMapReady?: (fn: () => void) => void;
+}) {
   const map = useMap();
 
   useEffect(() => {
-    map.setView([lat, lon], 19);
-  }, [map, lat, lon]);
+    if (candidates.length > 0) {
+      const points: L.LatLngExpression[] = [
+        [lat, lon],
+        ...candidates.map((c) => [c.lat, c.lon] as L.LatLngExpression),
+      ];
+      const bounds = L.latLngBounds(points);
+      map.fitBounds(bounds, { padding: [50, 50], maxZoom: 20 });
+    } else {
+      map.setView([lat, lon], 19);
+    }
+  }, [map, lat, lon, candidates]);
 
   useEffect(() => {
-    onMapReady?.(() => map.flyTo([lat, lon], 19, { duration: 0.6 }));
-  }, [map, lat, lon, onMapReady]);
+    onMapReady?.(() => {
+      if (candidates.length > 0) {
+        const points: L.LatLngExpression[] = [
+          [lat, lon],
+          ...candidates.map((c) => [c.lat, c.lon] as L.LatLngExpression),
+        ];
+        map.flyToBounds(L.latLngBounds(points), { padding: [50, 50], maxZoom: 20, duration: 0.6 });
+      } else {
+        map.flyTo([lat, lon], 19, { duration: 0.6 });
+      }
+    });
+  }, [map, lat, lon, candidates, onMapReady]);
 
   return null;
 }
@@ -59,15 +83,17 @@ export function GameMap({ gpsPoint, candidates, selectedPoiId, onSelectPoi, answ
   const center: [number, number] = [gpsPoint.lat, gpsPoint.lon];
 
   return (
-    <MapContainer center={center} zoom={19} className="game-map">
-      <MapUpdater lat={gpsPoint.lat} lon={gpsPoint.lon} onMapReady={onMapReady} />
+    <MapContainer center={center} zoom={19} maxZoom={21} className="game-map">
+      <MapUpdater lat={gpsPoint.lat} lon={gpsPoint.lon} candidates={candidates} onMapReady={onMapReady} />
       <TileLayer
-        attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a>'
-        url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+        attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a> &copy; <a href="https://carto.com/">CARTO</a>'
+        url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager_nolabels/{z}/{x}/{y}{r}.png"
+        maxNativeZoom={19}
+        maxZoom={21}
       />
 
-      {/* GPS location — red pin, not clickable */}
-      <Marker position={center} icon={GPS_ICON} interactive={false} />
+      {/* GPS location — red pin, no popup so not selectable as an answer */}
+      <Marker position={center} icon={GPS_ICON} />
 
       {/* Candidate POIs */}
       {candidates.map((poi) => (
