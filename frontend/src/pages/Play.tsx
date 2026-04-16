@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { GameMap } from "../components/GameMap";
-import { PoiList } from "../components/PoiList";
+import { PlayMapHud } from "../components/PlayMapHud";
 import { api } from "../lib/api";
 import type { AnswerResponse, Question } from "../lib/types";
 
@@ -61,10 +61,10 @@ export function Play({ onScoreUpdate }: PlayProps) {
 
   if (loading) {
     return (
-      <div className="page play-page">
+      <div className="play-map-stack play-map-stack--loading">
         <div className="loading-screen">
           <div className="spinner" />
-          <p>Loading question...</p>
+          <p>Loading question…</p>
         </div>
       </div>
     );
@@ -72,7 +72,7 @@ export function Play({ onScoreUpdate }: PlayProps) {
 
   if (error && !question) {
     return (
-      <div className="page play-page">
+      <div className="play-map-stack play-map-stack--loading">
         <div className="game-empty">
           <h2>No Questions Available</h2>
           <p>{error}</p>
@@ -87,54 +87,25 @@ export function Play({ onScoreUpdate }: PlayProps) {
   if (!question) return null;
 
   return (
-    <div className="page play-page">
-      <div className="game-layout">
-        <div className="game-map-container">
-          <GameMap
-            gpsPoint={question.gps_point}
-            candidates={question.candidates}
-            selectedPoiId={selectedPoiId}
-            onSelectPoi={setSelectedPoiId}
-            answered={!!feedback}
-          />
-        </div>
-        <div className="game-sidebar">
-          <PoiList
-            candidates={question.candidates}
-            selectedPoiId={selectedPoiId}
-            onSelectPoi={setSelectedPoiId}
-            gpsPoint={question.gps_point}
-            answered={!!feedback}
-          />
-          {feedback ? (
-            <div className="feedback-panel">
-              <div className="feedback-score">
-                +{feedback.score_awarded} points
-              </div>
-              <div className="feedback-breakdown">
-                <span className="breakdown-item">5 base</span>
-                <span className="breakdown-sep">+</span>
-                <span className="breakdown-item">{feedback.score_awarded - 5} proximity</span>
-              </div>
-              <p className="feedback-hint">
-                Consensus bonus (+10) unlocks when others agree!
-              </p>
-              <button onClick={fetchQuestion} className="btn btn-primary btn-lg btn-full">
-                Next Question →
-              </button>
-            </div>
-          ) : (
-            <button
-              onClick={handleSubmit}
-              disabled={!selectedPoiId || submitting}
-              className="btn btn-primary btn-lg btn-full"
-            >
-              {submitting ? "Submitting..." : "Submit Answer"}
-            </button>
-          )}
-          {error && <p className="error-text">{error}</p>}
-        </div>
-      </div>
+    <div className="play-map-stack">
+      <GameMap
+        gpsPoint={question.gps_point}
+        candidates={question.candidates}
+        selectedPoiId={selectedPoiId}
+        onSelectPoi={setSelectedPoiId}
+        answered={!!feedback}
+      />
+      <PlayMapHud
+        gpsPoint={question.gps_point}
+        candidates={question.candidates}
+        selectedPoiId={selectedPoiId}
+        answered={!!feedback}
+        feedback={feedback}
+        submitting={submitting}
+        error={error}
+        onSubmit={handleSubmit}
+        onNextQuestion={fetchQuestion}
+      />
     </div>
   );
 }

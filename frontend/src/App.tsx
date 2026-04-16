@@ -1,4 +1,4 @@
-import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-router-dom";
 import { Navbar } from "./components/Navbar";
 import { Home } from "./pages/Home";
 import { Play } from "./pages/Play";
@@ -7,8 +7,9 @@ import { Login } from "./pages/Login";
 import { Register } from "./pages/Register";
 import { useAuth } from "./hooks/useAuth";
 
-function App() {
-  const { user, loading, logout, refetchUser } = useAuth();
+function AppShell({ user, loading, logout, refetchUser }: ReturnType<typeof useAuth>) {
+  const location = useLocation();
+  const isPlay = location.pathname === "/play";
 
   if (loading) {
     return (
@@ -20,9 +21,9 @@ function App() {
   }
 
   return (
-    <BrowserRouter>
+    <>
       <Navbar user={user} onLogout={logout} />
-      <main className="main-content">
+      <main className={isPlay ? "main-content main-content--play" : "main-content"}>
         <Routes>
           <Route path="/" element={<Home user={user} />} />
           <Route
@@ -43,6 +44,15 @@ function App() {
           />
         </Routes>
       </main>
+    </>
+  );
+}
+
+function App() {
+  const auth = useAuth();
+  return (
+    <BrowserRouter>
+      <AppShell {...auth} />
     </BrowserRouter>
   );
 }
