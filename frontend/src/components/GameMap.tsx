@@ -1,8 +1,15 @@
 import { useEffect } from "react";
-import { MapContainer, TileLayer, Marker, Popup, useMap } from "react-leaflet";
+import { MapContainer, TileLayer, Marker, Tooltip, useMap } from "react-leaflet";
 import L from "leaflet";
 import type { Poi, GpsPoint } from "../lib/types";
+import type { TimeOfDay } from "../lib/timeOfDay";
 import "leaflet/dist/leaflet.css";
+
+const TILE_URLS: Record<TimeOfDay, string> = {
+  day: "https://{s}.basemaps.cartocdn.com/rastertiles/voyager_labels_under/{z}/{x}/{y}{r}.png",
+  evening: "https://{s}.basemaps.cartocdn.com/rastertiles/voyager_labels_under/{z}/{x}/{y}{r}.png",
+  night: "https://{s}.basemaps.cartocdn.com/rastertiles/dark_all/{z}/{x}/{y}{r}.png",
+};
 
 const GPS_ICON = new L.Icon({
   iconUrl: "https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-red.png",
@@ -39,6 +46,7 @@ interface GameMapProps {
   onSelectPoi: (poiId: string) => void;
   answered?: boolean;
   onMapReady?: (recenter: () => void) => void;
+  timeOfDay?: TimeOfDay;
 }
 
 function MapUpdater({ lat, lon, candidates, onMapReady }: {
@@ -79,15 +87,16 @@ function MapUpdater({ lat, lon, candidates, onMapReady }: {
   return null;
 }
 
-export function GameMap({ gpsPoint, candidates, selectedPoiId, onSelectPoi, answered = false, onMapReady }: GameMapProps) {
+export function GameMap({ gpsPoint, candidates, selectedPoiId, onSelectPoi, answered = false, onMapReady, timeOfDay = "day" }: GameMapProps) {
   const center: [number, number] = [gpsPoint.lat, gpsPoint.lon];
 
   return (
-    <MapContainer center={center} zoom={19} maxZoom={21} className="game-map">
+    <MapContainer center={center} zoom={19} maxZoom={21} className={`game-map game-map--${timeOfDay}`}>
       <MapUpdater lat={gpsPoint.lat} lon={gpsPoint.lon} candidates={candidates} onMapReady={onMapReady} />
       <TileLayer
+        key={timeOfDay}
         attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a> &copy; <a href="https://carto.com/">CARTO</a>'
-        url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager_nolabels/{z}/{x}/{y}{r}.png"
+        url={TILE_URLS[timeOfDay]}
         maxNativeZoom={19}
         maxZoom={21}
       />
@@ -95,21 +104,29 @@ export function GameMap({ gpsPoint, candidates, selectedPoiId, onSelectPoi, answ
       {/* GPS location — red pin, no popup so not selectable as an answer */}
       <Marker position={center} icon={GPS_ICON} />
 
-      {/* Candidate POIs */}
-      {candidates.map((poi) => (
-        <Marker
-          key={poi.id}
-          position={[poi.lat, poi.lon]}
-          icon={poi.id === selectedPoiId ? SELECTED_ICON : POI_ICON}
-          eventHandlers={{ click: () => onSelectPoi(poi.id) }}
-        >
-          <Popup>
-            <strong>{poi.name}</strong>
-            <br />
-            {poi.category}{answered ? ` — ${poi.distance_meters.toFixed(0)}m` : ""}
-          </Popup>
-        </Marker>
-      ))}
+      {/* Candidate POIs — render unselected first, selected last so it's on top */}
+      {candidates
+        .slice()
+        .sort((a, b) => (a.id === selectedPoiId ? 1 : 0) - (b.id === selectedPoiId ? 1 : 0))
+        .map((poi) => {
+          const isSelected = poi.id === selectedPoiId;
+          return (
+            <Marker
+              key={poi.id}
+              position={[poi.lat, poi.lon]}
+              icon={isSelected ? SELECTED_ICON : POI_ICON}
+              zIndexOffset={isSelected ? 1000 : 0}
+              ref={(ref) => { if (ref) ref.setZIndexOffset(isSelected ? 1000 : 0); }}
+              eventHandlers={{ click: () => onSelectPoi(poi.id) }}
+            >
+              <Tooltip permanent direction="top" offset={[0, -42]} className={isSelected ? "poi-tooltip poi-tooltip--selected" : "poi-tooltip"}>
+                <strong>{poi.name}</strong>
+                <span className="poi-tooltip-cat">{poi.category}</span>
+                {answered && <span className="poi-tooltip-dist">{poi.distance_meters.toFixed(0)}m</span>}
+              </Tooltip>
+            </Marker>
+          );
+        })}
     </MapContainer>
   );
 }
