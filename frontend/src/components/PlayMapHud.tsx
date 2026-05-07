@@ -35,9 +35,9 @@ export function PlayMapHud({
         <button type="button" className="hud-top-row" onClick={onRecenter} aria-label="Re-center map on the question">
           {hasTime && (
             <span className="hud-visit-chip">
-              {gpsPoint.weekday && <>{gpsPoint.weekday}</>}
-              {gpsPoint.local_date && <>, {gpsPoint.local_date}</>}
-              {gpsPoint.local_time && <> · {gpsPoint.local_time}</>}
+              {gpsPoint.weekday && <strong>{gpsPoint.weekday}</strong>}
+              {gpsPoint.local_date && <span className="hud-visit-date">{gpsPoint.local_date}</span>}
+              {gpsPoint.local_time && <span className="hud-visit-time">{gpsPoint.local_time}</span>}
             </span>
           )}
           <span className="hud-prompt">Which POI was this person most likely visiting?</span>

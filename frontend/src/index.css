@@ -139,6 +139,7 @@ a {
 .btn-lg {
   padding: 0.75rem 2rem;
   font-size: 1rem;
+  min-height: 44px;
 }
 
 /* Pages */
@@ -344,13 +345,32 @@ a {
 }
 
 .hud-visit-chip {
-  font-size: 0.82rem;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.9rem;
   font-weight: 500;
-  color: var(--color-primary);
+  color: #fff;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  max-width: 260px;
+  max-width: 340px;
+  background: var(--color-primary);
+  padding: 0.2rem 0.6rem;
+  border-radius: 6px;
+}
+
+.hud-visit-chip strong {
+  font-weight: 700;
+}
+
+.hud-visit-date {
+  opacity: 0.9;
+}
+
+.hud-visit-time {
+  font-weight: 700;
+  letter-spacing: 0.02em;
 }
 
 .hud-prompt {
@@ -562,8 +582,9 @@ a {
   }
 
   .hud-visit-chip {
-    max-width: 150px;
+    max-width: 200px;
     font-size: 0.75rem;
+    padding: 0.15rem 0.5rem;
   }
 
   .hud-prompt {
@@ -590,11 +611,13 @@ a {
 .leaderboard-table-wrapper {
   border: 1px solid var(--color-border);
   border-radius: var(--radius-lg);
-  overflow: hidden;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
 }
 
 .leaderboard-table {
   width: 100%;
+  min-width: 480px;
   border-collapse: collapse;
 }
 
@@ -695,7 +718,8 @@ a {
   border-radius: var(--radius);
   background: var(--color-bg);
   color: var(--color-text);
-  font-size: 0.95rem;
+  /* 16px prevents iOS Safari auto-zoom on focus */
+  font-size: 16px;
   transition: border-color 0.15s;
 }
 
@@ -801,5 +825,324 @@ a {
 
   .nav-link {
     font-size: 0.8rem;
+  }
+}
+
+/* Permanent POI tooltips on the map */
+.poi-tooltip {
+  font-size: 0.75rem;
+  padding: 3px 8px;
+  white-space: nowrap;
+  border-radius: 4px;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.25);
+  pointer-events: none;
+  line-height: 1.4;
+  background: var(--tooltip-bg, #fff);
+  color: var(--tooltip-fg, #0f172a);
+  border: 1px solid var(--tooltip-border, rgba(0, 0, 0, 0.1));
+}
+
+.play-map-stack--night .poi-tooltip::before,
+.play-map-stack--evening .poi-tooltip::before {
+  border-top-color: var(--tooltip-bg) !important;
+}
+
+.poi-tooltip-cat {
+  display: block;
+  font-size: 0.65rem;
+  opacity: 0.7;
+  font-style: italic;
+}
+
+.poi-tooltip-dist {
+  font-size: 0.65rem;
+  opacity: 0.7;
+  margin-left: 0.3rem;
+}
+
+.poi-tooltip--selected {
+  font-weight: 700;
+  background: #2d6a4f;
+  color: #fff;
+  border-color: #2d6a4f;
+  z-index: 1000 !important;
+}
+
+.poi-tooltip--selected .poi-tooltip-cat,
+.poi-tooltip--selected .poi-tooltip-dist {
+  opacity: 0.85;
+}
+
+.poi-tooltip--selected::before {
+  border-top-color: #2d6a4f;
+}
+
+/* Time-of-day theming variables, defaulting to "day" */
+.play-map-stack {
+  --clock-bg: rgba(255, 255, 255, 0.96);
+  --clock-border: rgba(15, 23, 42, 0.1);
+  --clock-text: #0f172a;
+  --clock-muted: #475569;
+  --clock-face-fg: #0f172a;
+  --tooltip-bg: #ffffff;
+  --tooltip-fg: #0f172a;
+  --tooltip-border: rgba(15, 23, 42, 0.15);
+}
+
+.play-map-stack--evening {
+  --clock-bg: rgba(255, 232, 200, 0.96);
+  --clock-border: rgba(120, 70, 30, 0.2);
+  --clock-text: #3a1f0a;
+  --clock-muted: #6b3d18;
+  --clock-face-fg: #3a1f0a;
+  --tooltip-bg: #fff4e0;
+  --tooltip-fg: #3a1f0a;
+  --tooltip-border: rgba(120, 70, 30, 0.25);
+}
+
+.play-map-stack--night {
+  --clock-bg: rgba(20, 28, 48, 0.94);
+  --clock-border: rgba(255, 255, 255, 0.15);
+  --clock-text: #e2e8f0;
+  --clock-muted: #94a3b8;
+  --clock-face-fg: #e2e8f0;
+  --tooltip-bg: #1e293b;
+  --tooltip-fg: #e2e8f0;
+  --tooltip-border: rgba(255, 255, 255, 0.15);
+}
+
+/* Evening: warm dusk overlay tint applied to the tile pane */
+.play-map-stack--evening .leaflet-tile-pane {
+  filter: brightness(0.9) sepia(0.25) hue-rotate(-12deg) saturate(1.05);
+}
+
+/* Fixed clock panel anchored to the top-right of the map */
+.clock-panel {
+  position: absolute;
+  top: 0.75rem;
+  right: 0.75rem;
+  z-index: 1000;
+  pointer-events: auto;
+  background: var(--clock-bg);
+  backdrop-filter: blur(6px);
+  border: 1px solid var(--clock-border);
+  color: var(--clock-text);
+  border-radius: 14px;
+  padding: 0.75rem;
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.18);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.35rem;
+  width: 140px;
+  transition: background 0.4s ease, color 0.4s ease, border-color 0.4s ease;
+}
+
+.clock-panel-face {
+  width: 130px;
+  height: 130px;
+  display: block;
+}
+
+.clock-panel-time {
+  font-size: 1.25rem;
+  font-weight: 800;
+  color: var(--clock-text);
+  letter-spacing: 0.02em;
+  line-height: 1;
+}
+
+.clock-panel-date {
+  font-size: 0.78rem;
+  font-weight: 500;
+  color: var(--clock-muted);
+  text-align: center;
+  line-height: 1.25;
+}
+
+/* Adapt clock face colors to the time-of-day theme */
+.play-map-stack--night .clock-panel-face circle:first-of-type {
+  fill: #0b1226;
+  stroke: #e2e8f0;
+}
+.play-map-stack--night .clock-panel-face line,
+.play-map-stack--night .clock-panel-face circle:last-of-type {
+  stroke: #e2e8f0;
+  fill: #e2e8f0;
+}
+.play-map-stack--night .clock-panel-face text {
+  fill: #e2e8f0;
+}
+.play-map-stack--evening .clock-panel-face circle:first-of-type {
+  fill: #fff7e8;
+  stroke: #3a1f0a;
+}
+
+@media (max-width: 768px) {
+  .clock-panel {
+    width: 100px;
+    padding: 0.45rem;
+    top: 0.5rem;
+    right: 0.5rem;
+  }
+  .clock-panel-face {
+    width: 90px;
+    height: 90px;
+  }
+  .clock-panel-time {
+    font-size: 1rem;
+  }
+  .clock-panel-date {
+    font-size: 0.7rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .clock-panel {
+    width: 78px;
+    padding: 0.35rem;
+  }
+  .clock-panel-face {
+    width: 70px;
+    height: 70px;
+  }
+  .clock-panel-time {
+    font-size: 0.9rem;
+  }
+  .clock-panel-date {
+    display: none;
+  }
+}
+
+/* ---------- Tablet (max-width: 768px) ---------- */
+@media (max-width: 768px) {
+  .main-content {
+    padding: 1.5rem 1rem;
+  }
+
+  .hero {
+    padding: 2.5rem 0;
+  }
+
+  .hero h1 {
+    font-size: 2.25rem;
+  }
+
+  .hero-subtitle {
+    font-size: 1.05rem;
+  }
+
+  .stat-card {
+    padding: 1rem 1.25rem;
+    min-width: 100px;
+  }
+
+  .stat-value {
+    font-size: 1.6rem;
+  }
+
+  .leaderboard-table th,
+  .leaderboard-table td {
+    padding: 0.55rem 0.6rem;
+    font-size: 0.85rem;
+  }
+
+  .player-info .avatar {
+    width: 24px;
+    height: 24px;
+  }
+}
+
+/* ---------- Phone (max-width: 480px) ---------- */
+@media (max-width: 480px) {
+  .main-content {
+    padding: 1rem 0.75rem;
+  }
+
+  .hero {
+    padding: 1.75rem 0;
+  }
+
+  .hero h1 {
+    font-size: 1.85rem;
+  }
+
+  .hero-subtitle {
+    font-size: 0.95rem;
+    margin-bottom: 1.25rem;
+  }
+
+  .stat-cards {
+    gap: 0.6rem;
+    margin: 1rem 0;
+  }
+
+  .stat-card {
+    padding: 0.75rem 1rem;
+    min-width: 0;
+    flex: 1;
+    max-width: 50%;
+  }
+
+  .stat-value {
+    font-size: 1.35rem;
+  }
+
+  .stat-label {
+    font-size: 0.65rem;
+  }
+
+  .auth-page {
+    padding-top: 1rem;
+  }
+
+  .auth-card {
+    padding: 1.25rem 1rem;
+  }
+
+  .auth-card h2 {
+    font-size: 1.35rem;
+    margin-bottom: 1rem;
+  }
+
+  .auth-form {
+    gap: 0.75rem;
+  }
+
+  .auth-divider {
+    margin: 1rem 0;
+  }
+
+  .leaderboard-page h2 {
+    font-size: 1.4rem;
+    margin-bottom: 1rem;
+  }
+
+  .leaderboard-table {
+    /* still allow horizontal scroll inside wrapper if needed */
+    min-width: 380px;
+  }
+
+  .leaderboard-table th,
+  .leaderboard-table td {
+    padding: 0.45rem 0.5rem;
+    font-size: 0.8rem;
+  }
+
+  /* Bottom HUD: keep readable on narrow phones */
+  .hud-selection-name {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    max-width: 65vw;
+  }
+
+  .hud-feedback-poi {
+    font-size: 0.72rem;
+  }
+
+  /* Submit button stays comfortable for thumbs */
+  .hud-submit {
+    min-height: 44px;
   }
 }

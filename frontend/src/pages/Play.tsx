@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { GameMap } from "../components/GameMap";
 import { PlayMapHud } from "../components/PlayMapHud";
+import { ClockPanel } from "../components/ClockPanel";
 import { api } from "../lib/api";
+import { timeOfDay } from "../lib/timeOfDay";
 import type { AnswerResponse, Question } from "../lib/types";
 
 interface PlayProps {
@@ -88,8 +90,10 @@ export function Play({ onScoreUpdate }: PlayProps) {
 
   if (!question) return null;
 
+  const tod = timeOfDay(question.gps_point.local_time);
+
   return (
-    <div className="play-map-stack">
+    <div className={`play-map-stack play-map-stack--${tod}`} data-tod={tod}>
       <GameMap
         gpsPoint={question.gps_point}
         candidates={question.candidates}
@@ -97,6 +101,7 @@ export function Play({ onScoreUpdate }: PlayProps) {
         onSelectPoi={setSelectedPoiId}
         answered={!!feedback}
         onMapReady={handleMapReady}
+        timeOfDay={tod}
       />
       <PlayMapHud
         gpsPoint={question.gps_point}
@@ -110,6 +115,7 @@ export function Play({ onScoreUpdate }: PlayProps) {
         onNextQuestion={fetchQuestion}
         onRecenter={() => recenterRef.current?.()}
       />
+      <ClockPanel gpsPoint={question.gps_point} />
     </div>
   );
 }
