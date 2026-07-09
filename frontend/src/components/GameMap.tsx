@@ -56,11 +56,16 @@ function numberedPoiIcon(
          </span>`
       : "";
 
-  const html = `<div class="poi-num-wrap">${labelHtml}<span class="poi-num-badge">${num}</span></div>`;
-  const iconW = selected ? 220 : badgeSize;
-  const iconH = selected ? 78 : badgeSize;
-  const anchorX = selected ? iconW / 2 : badgeSize / 2;
-  const anchorY = selected ? iconH - badgeSize / 2 : badgeSize / 2;
+  // Selected: badge + name label to the RIGHT (avoids colliding with GPS label above the red pin)
+  const html = selected
+    ? `<div class="poi-num-wrap poi-num-wrap--selected"><span class="poi-num-badge">${num}</span>${labelHtml}</div>`
+    : `<div class="poi-num-wrap"><span class="poi-num-badge">${num}</span></div>`;
+
+  const iconW = selected ? 240 : badgeSize;
+  const iconH = selected ? 48 : badgeSize;
+  // Anchor on the badge center (left side of the wide selected icon)
+  const anchorX = selected ? badgeSize / 2 : badgeSize / 2;
+  const anchorY = selected ? iconH / 2 : badgeSize / 2;
 
   return L.divIcon({
     className: classes,
@@ -173,7 +178,7 @@ export function GameMap({ gpsPoint, candidates, selectedPoiId, onSelectPoi, onMa
       />
 
       <Marker position={center} icon={GPS_ICON} interactive={false} zIndexOffset={500}>
-        <Tooltip permanent direction="top" offset={[0, -42]} className="gps-tooltip">
+        <Tooltip permanent direction="left" offset={[-8, -16]} className="gps-tooltip">
           Actual visit location
         </Tooltip>
       </Marker>

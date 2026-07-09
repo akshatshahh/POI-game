@@ -931,7 +931,9 @@ a {
 }
 
 .gps-tooltip::before {
-  border-top-color: #dc2626 !important;
+  /* Leaflet left-direction tooltip arrow */
+  border-left-color: #dc2626 !important;
+  border-top-color: transparent !important;
 }
 
 /* Numbered POI DivIcons */
@@ -943,26 +945,33 @@ a {
 .poi-num-marker {
   display: flex;
   align-items: center;
-  justify-content: center;
+  justify-content: flex-start;
 }
 
 .poi-num-wrap {
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: flex-end;
+  justify-content: center;
   width: 100%;
   height: 100%;
   pointer-events: none;
 }
 
+.poi-num-wrap--selected {
+  flex-direction: row;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 6px;
+}
+
 .poi-num-label {
   display: flex;
   flex-direction: column;
-  align-items: center;
+  align-items: flex-start;
   gap: 0.1rem;
-  max-width: 200px;
-  margin-bottom: 4px;
+  max-width: 190px;
+  margin: 0;
   padding: 4px 8px;
   background: #16a34a;
   color: #fff;
@@ -971,7 +980,7 @@ a {
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35);
   font-size: 0.72rem;
   line-height: 1.25;
-  text-align: center;
+  text-align: left;
   white-space: normal;
   pointer-events: none;
 }
