@@ -102,7 +102,8 @@ export function ClockPanel({ gpsPoint }: ClockPanelProps) {
   if (!parsed && !gpsPoint.local_time && !gpsPoint.weekday && !gpsPoint.local_date) return null;
 
   return (
-    <div className="clock-panel" aria-label="Visit time">
+    <div className="clock-panel" aria-label="POI visit date/time">
+      <div className="clock-panel-label">POI visit date/time</div>
       {parsed && (
         <div className="clock-panel-face">
           <ClockFace hours={parsed.hours} minutes={parsed.minutes} />

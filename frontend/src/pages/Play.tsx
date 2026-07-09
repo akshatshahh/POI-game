@@ -99,7 +99,6 @@ export function Play({ onScoreUpdate }: PlayProps) {
         candidates={question.candidates}
         selectedPoiId={selectedPoiId}
         onSelectPoi={setSelectedPoiId}
-        answered={!!feedback}
         onMapReady={handleMapReady}
         timeOfDay={tod}
       />
@@ -111,6 +110,7 @@ export function Play({ onScoreUpdate }: PlayProps) {
         feedback={feedback}
         submitting={submitting}
         error={error}
+        onSelectPoi={setSelectedPoiId}
         onSubmit={handleSubmit}
         onNextQuestion={fetchQuestion}
         onRecenter={() => recenterRef.current?.()}
