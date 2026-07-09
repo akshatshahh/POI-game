@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { GameMap } from "../components/GameMap";
 import { PlayMapHud } from "../components/PlayMapHud";
 import { ClockPanel } from "../components/ClockPanel";
@@ -10,7 +11,12 @@ interface PlayProps {
   onScoreUpdate: () => void;
 }
 
+function isUnauthorized(err: unknown): boolean {
+  return err instanceof Error && /\b401\b/.test(err.message);
+}
+
 export function Play({ onScoreUpdate }: PlayProps) {
+  const navigate = useNavigate();
   const [question, setQuestion] = useState<Question | null>(null);
   const [selectedPoiId, setSelectedPoiId] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -29,6 +35,10 @@ export function Play({ onScoreUpdate }: PlayProps) {
       const q = await api.get<Question>("/game/next-question");
       setQuestion(q);
     } catch (err) {
+      if (isUnauthorized(err)) {
+        navigate("/", { replace: true });
+        return;
+      }
       const msg = err instanceof Error ? err.message : "Failed to load question";
       if (msg.includes("404")) {
         setError("No more questions available. Check back later!");
@@ -39,7 +49,7 @@ export function Play({ onScoreUpdate }: PlayProps) {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [navigate]);
 
   useEffect(() => {
     fetchQuestion();
@@ -56,6 +66,10 @@ export function Play({ onScoreUpdate }: PlayProps) {
       setFeedback(result);
       onScoreUpdate();
     } catch (err) {
+      if (isUnauthorized(err)) {
+        navigate("/", { replace: true });
+        return;
+      }
       const msg = err instanceof Error ? err.message : "Submission failed";
       setError(msg);
     } finally {

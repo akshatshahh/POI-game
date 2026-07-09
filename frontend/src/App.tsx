@@ -1,6 +1,7 @@
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-router-dom";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import { Navbar } from "./components/Navbar";
+import { RequireAuth } from "./components/RequireAuth";
 import { Home } from "./pages/Home";
 import { Play } from "./pages/Play";
 import { Leaderboard } from "./pages/Leaderboard";
@@ -12,6 +13,8 @@ function AppShell({ user, loading, logout, refetchUser }: ReturnType<typeof useA
   const location = useLocation();
   const isPlay = location.pathname === "/play";
 
+  // Wait for /auth/me before rendering any route — prevents protected pages
+  // from briefly mounting (and calling game APIs) while auth is unknown.
   if (loading) {
     return (
       <div className="loading-screen">
@@ -26,6 +29,7 @@ function AppShell({ user, loading, logout, refetchUser }: ReturnType<typeof useA
       <Navbar user={user} onLogout={logout} />
       <main className={isPlay ? "main-content main-content--play" : "main-content"}>
         <Routes>
+          {/* Public */}
           <Route path="/" element={<Home user={user} />} />
           <Route
             path="/login"
@@ -35,14 +39,27 @@ function AppShell({ user, loading, logout, refetchUser }: ReturnType<typeof useA
             path="/register"
             element={user ? <Navigate to="/" replace /> : <Register onAuth={refetchUser} />}
           />
+
+          {/* Auth required — unauthenticated users go to home, not the game */}
           <Route
             path="/play"
-            element={user ? <Play onScoreUpdate={refetchUser} /> : <Navigate to="/login" replace />}
+            element={
+              <RequireAuth user={user}>
+                <Play onScoreUpdate={refetchUser} />
+              </RequireAuth>
+            }
           />
           <Route
             path="/leaderboard"
-            element={user ? <Leaderboard /> : <Navigate to="/login" replace />}
+            element={
+              <RequireAuth user={user}>
+                <Leaderboard />
+              </RequireAuth>
+            }
           />
+
+          {/* Unknown paths → home */}
+          <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </main>
     </>

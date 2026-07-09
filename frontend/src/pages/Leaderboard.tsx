@@ -1,8 +1,10 @@
 import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { api, safeAvatarUrl } from "../lib/api";
 import type { LeaderboardEntry } from "../lib/types";
 
 export function Leaderboard() {
+  const navigate = useNavigate();
   const [entries, setEntries] = useState<LeaderboardEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -13,13 +15,17 @@ export function Leaderboard() {
         const data = await api.get<LeaderboardEntry[]>("/leaderboard?limit=50");
         setEntries(data);
       } catch (err) {
+        if (err instanceof Error && /\b401\b/.test(err.message)) {
+          navigate("/", { replace: true });
+          return;
+        }
         setError(err instanceof Error ? err.message : "Failed to load leaderboard");
       } finally {
         setLoading(false);
       }
     }
     fetch();
-  }, []);
+  }, [navigate]);
 
   if (loading) {
     return (
