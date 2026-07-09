@@ -1,8 +1,9 @@
-import { useEffect } from "react";
+import { useEffect, useMemo } from "react";
 import { MapContainer, TileLayer, Marker, Tooltip, useMap } from "react-leaflet";
 import L from "leaflet";
 import type { Poi, GpsPoint } from "../lib/types";
 import type { TimeOfDay } from "../lib/timeOfDay";
+import { formatCategory } from "../lib/formatCategory";
 import "leaflet/dist/leaflet.css";
 
 const TILE_URLS: Record<TimeOfDay, string> = {
@@ -20,31 +21,60 @@ const GPS_ICON = new L.Icon({
   shadowSize: [41, 41],
 });
 
-const POI_ICON = new L.Icon({
-  iconUrl: "https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-blue.png",
-  shadowUrl: "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-shadow.png",
-  iconSize: [25, 41],
-  iconAnchor: [12, 41],
-  popupAnchor: [1, -34],
-  shadowSize: [41, 41],
-});
+const FIT_PADDING_TL: L.PointExpression = [50, 50];
+const FIT_PADDING_BR: L.PointExpression = [50, 220];
 
-const SELECTED_ICON = new L.Icon({
-  iconUrl: "https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-green.png",
-  shadowUrl: "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-shadow.png",
-  iconSize: [25, 41],
-  iconAnchor: [12, 41],
-  popupAnchor: [1, -34],
-  shadowSize: [41, 41],
-});
+function escapeHtml(text: string): string {
+  return text
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
 
+function numberedPoiIcon(
+  num: number,
+  selected: boolean,
+  dimmed: boolean,
+  name?: string,
+  category?: string,
+): L.DivIcon {
+  const badgeSize = selected ? 40 : 30;
+  const classes = [
+    "poi-num-marker",
+    selected ? "poi-num-marker--selected" : "",
+    dimmed ? "poi-num-marker--dimmed" : "",
+  ]
+    .filter(Boolean)
+    .join(" ");
+
+  const labelHtml =
+    selected && name
+      ? `<span class="poi-num-label">
+           <strong>${num}. ${escapeHtml(name)}</strong>
+           ${category ? `<span class="poi-num-label-cat">${escapeHtml(category)}</span>` : ""}
+         </span>`
+      : "";
+
+  const html = `<div class="poi-num-wrap">${labelHtml}<span class="poi-num-badge">${num}</span></div>`;
+  const iconW = selected ? 220 : badgeSize;
+  const iconH = selected ? 78 : badgeSize;
+  const anchorX = selected ? iconW / 2 : badgeSize / 2;
+  const anchorY = selected ? iconH - badgeSize / 2 : badgeSize / 2;
+
+  return L.divIcon({
+    className: classes,
+    html,
+    iconSize: [iconW, iconH],
+    iconAnchor: [anchorX, anchorY],
+  });
+}
 
 interface GameMapProps {
   gpsPoint: GpsPoint;
   candidates: Poi[];
   selectedPoiId: string | null;
   onSelectPoi: (poiId: string) => void;
-  answered?: boolean;
   onMapReady?: (recenter: () => void) => void;
   timeOfDay?: TimeOfDay;
 }
@@ -63,8 +93,11 @@ function MapUpdater({ lat, lon, candidates, onMapReady }: {
         [lat, lon],
         ...candidates.map((c) => [c.lat, c.lon] as L.LatLngExpression),
       ];
-      const bounds = L.latLngBounds(points);
-      map.fitBounds(bounds, { padding: [50, 50], maxZoom: 20 });
+      map.fitBounds(L.latLngBounds(points), {
+        paddingTopLeft: FIT_PADDING_TL,
+        paddingBottomRight: FIT_PADDING_BR,
+        maxZoom: 20,
+      });
     } else {
       map.setView([lat, lon], 19);
     }
@@ -77,7 +110,12 @@ function MapUpdater({ lat, lon, candidates, onMapReady }: {
           [lat, lon],
           ...candidates.map((c) => [c.lat, c.lon] as L.LatLngExpression),
         ];
-        map.flyToBounds(L.latLngBounds(points), { padding: [50, 50], maxZoom: 20, duration: 0.6 });
+        map.flyToBounds(L.latLngBounds(points), {
+          paddingTopLeft: FIT_PADDING_TL,
+          paddingBottomRight: FIT_PADDING_BR,
+          maxZoom: 20,
+          duration: 0.6,
+        });
       } else {
         map.flyTo([lat, lon], 19, { duration: 0.6 });
       }
@@ -87,12 +125,45 @@ function MapUpdater({ lat, lon, candidates, onMapReady }: {
   return null;
 }
 
-export function GameMap({ gpsPoint, candidates, selectedPoiId, onSelectPoi, answered = false, onMapReady, timeOfDay = "day" }: GameMapProps) {
+function SelectionFocuser({
+  selectedPoiId,
+  candidates,
+}: {
+  selectedPoiId: string | null;
+  candidates: Poi[];
+}) {
+  const map = useMap();
+
+  useEffect(() => {
+    if (!selectedPoiId) return;
+    const poi = candidates.find((c) => c.id === selectedPoiId);
+    if (!poi) return;
+    const targetZoom = Math.max(map.getZoom(), 18);
+    map.flyTo([poi.lat, poi.lon], Math.min(targetZoom, 20), {
+      duration: 0.55,
+      easeLinearity: 0.25,
+    });
+  }, [map, selectedPoiId, candidates]);
+
+  return null;
+}
+
+export function GameMap({ gpsPoint, candidates, selectedPoiId, onSelectPoi, onMapReady, timeOfDay = "day" }: GameMapProps) {
   const center: [number, number] = [gpsPoint.lat, gpsPoint.lon];
+  const hasSelection = !!selectedPoiId;
+
+  const numbered = useMemo(
+    () =>
+      candidates
+        .map((poi, index) => ({ poi, num: index + 1 }))
+        .sort((a, b) => (a.poi.id === selectedPoiId ? 1 : 0) - (b.poi.id === selectedPoiId ? 1 : 0)),
+    [candidates, selectedPoiId],
+  );
 
   return (
     <MapContainer center={center} zoom={19} maxZoom={21} className={`game-map game-map--${timeOfDay}`}>
       <MapUpdater lat={gpsPoint.lat} lon={gpsPoint.lon} candidates={candidates} onMapReady={onMapReady} />
+      <SelectionFocuser selectedPoiId={selectedPoiId} candidates={candidates} />
       <TileLayer
         key={timeOfDay}
         attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a> &copy; <a href="https://carto.com/">CARTO</a>'
@@ -101,32 +172,43 @@ export function GameMap({ gpsPoint, candidates, selectedPoiId, onSelectPoi, answ
         maxZoom={21}
       />
 
-      {/* GPS location — red pin, no popup so not selectable as an answer */}
-      <Marker position={center} icon={GPS_ICON} />
+      <Marker position={center} icon={GPS_ICON} interactive={false} zIndexOffset={500}>
+        <Tooltip permanent direction="top" offset={[0, -42]} className="gps-tooltip">
+          Actual visit location
+        </Tooltip>
+      </Marker>
 
-      {/* Candidate POIs — render unselected first, selected last so it's on top */}
-      {candidates
-        .slice()
-        .sort((a, b) => (a.id === selectedPoiId ? 1 : 0) - (b.id === selectedPoiId ? 1 : 0))
-        .map((poi) => {
-          const isSelected = poi.id === selectedPoiId;
-          return (
-            <Marker
-              key={poi.id}
-              position={[poi.lat, poi.lon]}
-              icon={isSelected ? SELECTED_ICON : POI_ICON}
-              zIndexOffset={isSelected ? 1000 : 0}
-              ref={(ref) => { if (ref) ref.setZIndexOffset(isSelected ? 1000 : 0); }}
-              eventHandlers={{ click: () => onSelectPoi(poi.id) }}
-            >
-              <Tooltip permanent direction="top" offset={[0, -42]} className={isSelected ? "poi-tooltip poi-tooltip--selected" : "poi-tooltip"}>
+      {numbered.map(({ poi, num }) => {
+        const isSelected = poi.id === selectedPoiId;
+        const dimmed = hasSelection && !isSelected;
+        const category = formatCategory(poi.category);
+        return (
+          <Marker
+            key={poi.id}
+            position={[poi.lat, poi.lon]}
+            icon={numberedPoiIcon(num, isSelected, dimmed, poi.name, category)}
+            zIndexOffset={isSelected ? 2000 : dimmed ? -100 : num}
+            riseOnHover
+            eventHandlers={{
+              click: (e) => {
+                L.DomEvent.stopPropagation(e.originalEvent);
+                onSelectPoi(poi.id);
+              },
+            }}
+            ref={(ref) => {
+              if (!ref) return;
+              ref.setZIndexOffset(isSelected ? 2000 : dimmed ? -100 : num);
+            }}
+          >
+            {!isSelected && (
+              <Tooltip direction="top" offset={[0, -18]} className="poi-tooltip" opacity={1}>
                 <strong>{poi.name}</strong>
-                <span className="poi-tooltip-cat">{poi.category}</span>
-                {answered && <span className="poi-tooltip-dist">{poi.distance_meters.toFixed(0)}m</span>}
+                <span className="poi-tooltip-cat">{category}</span>
               </Tooltip>
-            </Marker>
-          );
-        })}
+            )}
+          </Marker>
+        );
+      })}
     </MapContainer>
   );
 }

@@ -1,6 +1,7 @@
 import { type FormEvent, useEffect, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { api, getGoogleLoginUrl } from "../lib/api";
+import { GoogleLogo } from "../components/GoogleLogo";
 import type { User } from "../lib/types";
 
 interface LoginProps {
@@ -78,6 +79,7 @@ export function Login({ onAuth }: LoginProps) {
         </form>
         <div className="auth-divider"><span>or</span></div>
         <a href={getGoogleLoginUrl()} className="btn btn-google btn-full">
+          <GoogleLogo />
           Log in with Google
         </a>
         <p className="auth-switch">

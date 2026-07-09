@@ -344,10 +344,26 @@ a {
   line-height: 1;
 }
 
+.hud-recenter {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  flex-shrink: 0;
+  color: var(--color-primary);
+  font-size: 0.78rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.hud-recenter-text {
+  line-height: 1;
+}
+
 .hud-visit-chip {
   display: flex;
-  align-items: center;
-  gap: 0.4rem;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.1rem;
   font-size: 0.9rem;
   font-weight: 500;
   color: #fff;
@@ -356,8 +372,26 @@ a {
   text-overflow: ellipsis;
   max-width: 340px;
   background: var(--color-primary);
-  padding: 0.2rem 0.6rem;
-  border-radius: 6px;
+  padding: 0.25rem 0.65rem;
+  border-radius: 8px;
+  line-height: 1.2;
+}
+
+.hud-visit-label {
+  font-size: 0.62rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  opacity: 0.9;
+}
+
+.hud-visit-values {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.35rem;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .hud-visit-chip strong {
@@ -384,7 +418,9 @@ a {
 /* Bottom strip */
 .play-hud-bottom {
   pointer-events: auto;
-  margin: 0 0.5rem 0.5rem;
+  margin: 0 auto 0.75rem;
+  width: min(520px, calc(100% - 1.5rem));
+  max-width: 520px;
   background: rgba(15, 23, 42, 0.92);
   backdrop-filter: blur(8px);
   border: 1px solid var(--color-border);
@@ -395,6 +431,7 @@ a {
   gap: 0.4rem;
   /* safe area for iPhone home indicator */
   padding-bottom: max(0.6rem, env(safe-area-inset-bottom));
+  box-sizing: border-box;
 }
 
 .hud-selection {
@@ -597,9 +634,10 @@ a {
   }
 
   .play-hud-bottom {
-    margin-left: 0.4rem;
-    margin-right: 0.4rem;
+    margin-left: auto;
+    margin-right: auto;
     margin-bottom: 0.4rem;
+    width: min(420px, calc(100% - 0.8rem));
   }
 }
 
@@ -755,7 +793,7 @@ a {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 0.5rem;
+  gap: 0.55rem;
   padding: 0.65rem 1rem;
   border: 1px solid var(--color-border);
   border-radius: var(--radius);
@@ -764,6 +802,11 @@ a {
   font-weight: 500;
   text-decoration: none;
   transition: background 0.15s, border-color 0.15s;
+}
+
+.btn-google .google-logo {
+  flex-shrink: 0;
+  display: block;
 }
 
 .btn-google:hover {
@@ -852,29 +895,247 @@ a {
   font-size: 0.65rem;
   opacity: 0.7;
   font-style: italic;
-}
-
-.poi-tooltip-dist {
-  font-size: 0.65rem;
-  opacity: 0.7;
-  margin-left: 0.3rem;
+  max-width: 180px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .poi-tooltip--selected {
   font-weight: 700;
-  background: #2d6a4f;
+  background: #16a34a;
   color: #fff;
-  border-color: #2d6a4f;
-  z-index: 1000 !important;
+  border-color: #15803d;
+  z-index: 2000 !important;
 }
 
-.poi-tooltip--selected .poi-tooltip-cat,
-.poi-tooltip--selected .poi-tooltip-dist {
-  opacity: 0.85;
+.poi-tooltip--selected .poi-tooltip-cat {
+  opacity: 0.9;
 }
 
 .poi-tooltip--selected::before {
-  border-top-color: #2d6a4f;
+  border-top-color: #16a34a !important;
+}
+
+.gps-tooltip {
+  font-size: 0.72rem;
+  font-weight: 700;
+  padding: 3px 8px;
+  white-space: nowrap;
+  border-radius: 4px;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.25);
+  pointer-events: none;
+  background: #dc2626;
+  color: #fff;
+  border: 1px solid #b91c1c;
+}
+
+.gps-tooltip::before {
+  border-top-color: #dc2626 !important;
+}
+
+/* Numbered POI DivIcons */
+.leaflet-div-icon.poi-num-marker {
+  background: transparent;
+  border: none;
+}
+
+.poi-num-marker {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.poi-num-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+.poi-num-label {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.1rem;
+  max-width: 200px;
+  margin-bottom: 4px;
+  padding: 4px 8px;
+  background: #16a34a;
+  color: #fff;
+  border: 1px solid #15803d;
+  border-radius: 6px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35);
+  font-size: 0.72rem;
+  line-height: 1.25;
+  text-align: center;
+  white-space: normal;
+  pointer-events: none;
+}
+
+.poi-num-label strong {
+  font-weight: 700;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.poi-num-label-cat {
+  font-size: 0.62rem;
+  font-weight: 500;
+  font-style: italic;
+  opacity: 0.9;
+  max-width: 180px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.poi-num-badge {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: #2563eb;
+  color: #fff;
+  font-size: 0.78rem;
+  font-weight: 700;
+  font-family: inherit;
+  line-height: 1;
+  border: 2px solid #fff;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.35);
+  cursor: pointer;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+  pointer-events: auto;
+  flex-shrink: 0;
+}
+
+.poi-num-marker:hover .poi-num-badge {
+  transform: scale(1.12);
+  box-shadow: 0 2px 8px rgba(37, 99, 235, 0.55);
+}
+
+.poi-num-marker--selected .poi-num-badge {
+  width: 40px;
+  height: 40px;
+  font-size: 1rem;
+  background: #16a34a;
+  border-width: 3px;
+  box-shadow: 0 0 0 4px rgba(34, 197, 94, 0.45), 0 3px 10px rgba(0, 0, 0, 0.45);
+  animation: poiSelectPulse 0.7s ease-out;
+}
+
+.poi-num-marker--dimmed .poi-num-badge {
+  opacity: 0.45;
+  filter: grayscale(0.35);
+  transform: scale(0.92);
+}
+
+.poi-num-marker--dimmed:hover .poi-num-badge {
+  opacity: 0.85;
+  filter: none;
+  transform: scale(1.05);
+}
+
+@keyframes poiSelectPulse {
+  0% { transform: scale(0.7); box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.7); }
+  60% { transform: scale(1.15); box-shadow: 0 0 0 10px rgba(34, 197, 94, 0); }
+  100% { transform: scale(1); box-shadow: 0 0 0 4px rgba(34, 197, 94, 0.45), 0 3px 10px rgba(0, 0, 0, 0.45); }
+}
+
+/* Bottom candidate list */
+.hud-candidate-list {
+  list-style: none;
+  margin: 0 0 0.35rem;
+  padding: 0;
+  max-height: 9.5rem;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.hud-candidate-row {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  width: 100%;
+  text-align: left;
+  padding: 0.4rem 0.5rem;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: rgba(30, 41, 59, 0.55);
+  color: inherit;
+  font-family: inherit;
+  cursor: pointer;
+  transition: background 0.12s, border-color 0.12s, transform 0.12s;
+}
+
+.hud-candidate-row:hover {
+  background: rgba(51, 65, 85, 0.75);
+  border-color: rgba(148, 163, 184, 0.25);
+}
+
+.hud-candidate-row:active {
+  transform: scale(0.985);
+}
+
+.hud-candidate-row--selected {
+  background: rgba(34, 197, 94, 0.22);
+  border-color: rgba(34, 197, 94, 0.7);
+}
+
+.hud-candidate-row--selected:hover {
+  background: rgba(34, 197, 94, 0.3);
+}
+
+.hud-candidate-num {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  background: #2563eb;
+  color: #fff;
+  font-size: 0.72rem;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.hud-candidate-row--selected .hud-candidate-num {
+  background: #16a34a;
+}
+
+.hud-candidate-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  gap: 0.05rem;
+}
+
+.hud-candidate-name {
+  font-size: 0.82rem;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.hud-candidate-cat {
+  font-size: 0.7rem;
+  color: var(--color-text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 /* Time-of-day theming variables, defaulting to "day" */
@@ -944,6 +1205,16 @@ a {
   display: block;
 }
 
+.clock-panel-label {
+  font-size: 0.68rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--clock-muted);
+  text-align: center;
+  line-height: 1.2;
+}
+
 .clock-panel-time {
   font-size: 1.25rem;
   font-weight: 800;
@@ -999,7 +1270,7 @@ a {
 
 @media (max-width: 480px) {
   .clock-panel {
-    width: 78px;
+    width: 86px;
     padding: 0.35rem;
   }
   .clock-panel-face {
@@ -1009,8 +1280,19 @@ a {
   .clock-panel-time {
     font-size: 0.9rem;
   }
+  .clock-panel-label {
+    font-size: 0.55rem;
+  }
   .clock-panel-date {
     display: none;
+  }
+
+  .hud-recenter-text {
+    display: none;
+  }
+
+  .hud-candidate-list {
+    max-height: 7.5rem;
   }
 }
 

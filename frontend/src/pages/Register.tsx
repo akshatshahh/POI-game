@@ -1,6 +1,7 @@
 import { type FormEvent, useState } from "react";
 import { Link } from "react-router-dom";
 import { api, getGoogleLoginUrl } from "../lib/api";
+import { GoogleLogo } from "../components/GoogleLogo";
 import type { User } from "../lib/types";
 
 interface RegisterProps {
@@ -135,6 +136,7 @@ export function Register({ onAuth }: RegisterProps) {
         </form>
         <div className="auth-divider"><span>or</span></div>
         <a href={getGoogleLoginUrl()} className="btn btn-google btn-full">
+          <GoogleLogo />
           Sign up with Google
         </a>
         <p className="auth-switch">
