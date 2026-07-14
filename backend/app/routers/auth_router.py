@@ -12,6 +12,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth import (
+    OAUTH_STATE_COOKIE,
     clear_access_token_cookie,
     clear_oauth_state_cookie,
     create_access_token,
@@ -77,7 +78,7 @@ async def google_callback(
     if error:
         return fail_redirect()
 
-    cookie_state = request.cookies.get("oauth_state")
+    cookie_state = request.cookies.get(OAUTH_STATE_COOKIE)
     if not code or not state or not cookie_state:
         return fail_redirect()
 

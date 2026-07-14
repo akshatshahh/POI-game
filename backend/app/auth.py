@@ -20,48 +20,58 @@ JWT_AUDIENCE = "poi-game"
 
 ACCESS_TOKEN_COOKIE = "access_token"
 OAUTH_STATE_COOKIE = "oauth_state"
-TOKEN_COOKIE_MAX_AGE = 60 * 60 * 24 * 30
+TOKEN_COOKIE_MAX_AGE = TOKEN_EXPIRE_DAYS * 24 * 60 * 60
+OAUTH_STATE_COOKIE_MAX_AGE = 600
 
 
 def is_cookie_secure() -> bool:
     return settings.backend_url.startswith("https")
 
 
-def set_access_token_cookie(response: Response, token: str) -> None:
-    secure = is_cookie_secure()
+def _cookie_samesite() -> str:
     # Cross-origin SPA (e.g. separate Railway hostnames) needs None + Secure.
-    samesite: str = "none" if secure else "lax"
+    return "none" if is_cookie_secure() else "lax"
+
+
+def _set_cookie(response: Response, key: str, value: str, max_age: int) -> None:
     response.set_cookie(
-        key=ACCESS_TOKEN_COOKIE,
-        value=token,
+        key=key,
+        value=value,
         httponly=True,
-        secure=secure,
-        max_age=TOKEN_COOKIE_MAX_AGE,
-        samesite=samesite,
+        secure=is_cookie_secure(),
+        max_age=max_age,
+        samesite=_cookie_samesite(),
         path="/",
     )
+
+
+def _clear_cookie(response: Response, key: str) -> None:
+    # Deletion must carry the same Secure/SameSite attributes as the original
+    # cookie, or browsers drop the Set-Cookie on cross-origin responses and
+    # the cookie survives logout.
+    response.delete_cookie(
+        key,
+        path="/",
+        httponly=True,
+        secure=is_cookie_secure(),
+        samesite=_cookie_samesite(),
+    )
+
+
+def set_access_token_cookie(response: Response, token: str) -> None:
+    _set_cookie(response, ACCESS_TOKEN_COOKIE, token, TOKEN_COOKIE_MAX_AGE)
 
 
 def clear_access_token_cookie(response: Response) -> None:
-    response.delete_cookie(ACCESS_TOKEN_COOKIE, path="/")
+    _clear_cookie(response, ACCESS_TOKEN_COOKIE)
 
 
 def set_oauth_state_cookie(response: Response, state: str) -> None:
-    secure = is_cookie_secure()
-    samesite: str = "none" if secure else "lax"
-    response.set_cookie(
-        key=OAUTH_STATE_COOKIE,
-        value=state,
-        httponly=True,
-        secure=secure,
-        max_age=600,
-        samesite=samesite,
-        path="/",
-    )
+    _set_cookie(response, OAUTH_STATE_COOKIE, state, OAUTH_STATE_COOKIE_MAX_AGE)
 
 
 def clear_oauth_state_cookie(response: Response) -> None:
-    response.delete_cookie(OAUTH_STATE_COOKIE, path="/")
+    _clear_cookie(response, OAUTH_STATE_COOKIE)
 
 
 def get_password_hash(plain_password: str) -> str:

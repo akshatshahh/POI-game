@@ -4,16 +4,27 @@ import datetime
 import uuid
 import zoneinfo
 
-import h3
-from sqlalchemy import func, select
+from sqlalchemy import ColumnElement, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
+from app.geo import lat_lon_to_h3
 from app.models import Answer, GpsPoint, Question
 from app.regions import point_in_los_angeles
 from app.services.poi_service import get_nearby_pois
 
+# Question timestamps are shown in study-area local time (the game covers LA).
 _LA_TZ = zoneinfo.ZoneInfo("America/Los_Angeles")
+
+# A question needs at least this many candidate POIs to be playable.
+# Answer validation in game_router uses the same threshold.
+MIN_CANDIDATES = 3
+
+# Hard cap on how many POIs one oversampling query may fetch.
+_MAX_OVERSAMPLE = 400
+
+# How many low-answer-count GPS points to try before giving up on a question.
+_GPS_SAMPLE_SIZE = 5
 
 
 def _to_la_time(ts: datetime.datetime) -> datetime.datetime:
@@ -21,10 +32,6 @@ def _to_la_time(ts: datetime.datetime) -> datetime.datetime:
     if ts.tzinfo is None:
         ts = ts.replace(tzinfo=datetime.timezone.utc)
     return ts.astimezone(_LA_TZ)
-
-
-def _lat_lon_to_h3(lat: float, lon: float) -> str:
-    return h3.latlng_to_cell(lat, lon, settings.h3_resolution)
 
 
 async def fetch_user_used_poi_ids(db: AsyncSession, user_id: uuid.UUID) -> set[str]:
@@ -54,18 +61,21 @@ async def build_candidates_excluding_used_pois(
     """
     max_out = settings.poi_max_candidates
     for mult in (3, 6, 12, 24, 48):
-        cap = max(max_out * mult, min_needed * mult)
-        pois = await get_nearby_pois(db, lat=lat, lon=lon, max_results=min(cap, 400))
+        cap = min(max(max_out * mult, min_needed * mult), _MAX_OVERSAMPLE)
+        pois = await get_nearby_pois(db, lat=lat, lon=lon, max_results=cap)
         filtered = [p for p in pois if p["id"] not in excluded]
         if len(filtered) >= min_needed:
             return filtered[:max_out]
+        if cap == _MAX_OVERSAMPLE:
+            # Already fetched at the cap; a larger multiplier can't help.
+            break
     return []
 
 
 async def get_next_question(
     db: AsyncSession,
     user_id: uuid.UUID,
-    min_candidates: int = 3,
+    min_candidates: int = MIN_CANDIDATES,
 ) -> dict | None:
     """Select the next unanswered question for a user.
 
@@ -75,73 +85,40 @@ async def get_next_question(
     exclusion when the flag is off or H3 cells are not yet populated.
     """
     if settings.use_h3_dedup:
-        return await _next_question_h3(db, user_id, min_candidates)
-    return await _next_question_legacy(db, user_id, min_candidates)
-
-
-async def _next_question_legacy(
-    db: AsyncSession,
-    user_id: uuid.UUID,
-    min_candidates: int,
-) -> dict | None:
-    """Original per-GPS-point exclusion strategy."""
-    answered_subq = (
-        select(Question.gps_point_id)
-        .join(Answer, Answer.question_id == Question.id)
-        .where(Answer.user_id == user_id)
-        .correlate()
-        .scalar_subquery()
-    )
-
-    answer_count = (
-        select(func.count(Answer.id))
-        .join(Question, Question.id == Answer.question_id)
-        .where(Question.gps_point_id == GpsPoint.id)
-        .correlate(GpsPoint)
-        .scalar_subquery()
-    )
-
-    stmt = (
-        select(GpsPoint)
-        .where(GpsPoint.id.notin_(answered_subq))
-        .order_by(answer_count.asc(), func.random())
-        .limit(5)
-    )
-
-    result = await db.execute(stmt)
-    gps_rows = result.scalars().all()
-    excluded_pois = await fetch_user_used_poi_ids(db, user_id)
-
-    for gps_point in gps_rows:
-        if not _gps_in_study_area(gps_point.lat, gps_point.lon):
-            continue
-        pois = await build_candidates_excluding_used_pois(
-            db, gps_point.lat, gps_point.lon, excluded_pois, min_candidates
+        # Skip GPS points in H3 cells the user already answered.
+        answered_cells = (
+            select(Question.h3_cell)
+            .join(Answer, Answer.question_id == Question.id)
+            .where(Answer.user_id == user_id)
+            .where(Question.h3_cell.isnot(None))
+            .correlate()
+            .scalar_subquery()
         )
-        if len(pois) < min_candidates:
-            continue
+        exclusion = [
+            GpsPoint.h3_cell.isnot(None),
+            GpsPoint.h3_cell.notin_(answered_cells),
+        ]
+    else:
+        # Original strategy: skip only the exact GPS points already answered.
+        answered_points = (
+            select(Question.gps_point_id)
+            .join(Answer, Answer.question_id == Question.id)
+            .where(Answer.user_id == user_id)
+            .correlate()
+            .scalar_subquery()
+        )
+        exclusion = [GpsPoint.id.notin_(answered_points)]
 
-        question = await _get_or_create_question(db, gps_point)
-        return _build_response(question, gps_point, pois)
-
-    return None
+    return await _next_question(db, user_id, min_candidates, exclusion)
 
 
-async def _next_question_h3(
+async def _next_question(
     db: AsyncSession,
     user_id: uuid.UUID,
     min_candidates: int,
+    exclusion: list[ColumnElement],
 ) -> dict | None:
-    """H3-based exclusion: skip GPS points in cells already answered."""
-    answered_cells_subq = (
-        select(Question.h3_cell)
-        .join(Answer, Answer.question_id == Question.id)
-        .where(Answer.user_id == user_id)
-        .where(Question.h3_cell.isnot(None))
-        .correlate()
-        .scalar_subquery()
-    )
-
+    """Pick the least-answered eligible GPS point that has enough candidates."""
     answer_count = (
         select(func.count(Answer.id))
         .join(Question, Question.id == Answer.question_id)
@@ -152,10 +129,9 @@ async def _next_question_h3(
 
     stmt = (
         select(GpsPoint)
-        .where(GpsPoint.h3_cell.isnot(None))
-        .where(GpsPoint.h3_cell.notin_(answered_cells_subq))
+        .where(*exclusion)
         .order_by(answer_count.asc(), func.random())
-        .limit(5)
+        .limit(_GPS_SAMPLE_SIZE)
     )
 
     result = await db.execute(stmt)
@@ -207,7 +183,7 @@ async def _get_or_create_question(
     question = result.scalar_one_or_none()
 
     if question is None:
-        h3_cell = gps_point.h3_cell or _lat_lon_to_h3(gps_point.lat, gps_point.lon)
+        h3_cell = gps_point.h3_cell or lat_lon_to_h3(gps_point.lat, gps_point.lon)
         question = Question(
             gps_point_id=gps_point.id,
             h3_cell=h3_cell,

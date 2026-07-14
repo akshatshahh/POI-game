@@ -2,6 +2,7 @@
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth import get_current_user
@@ -9,6 +10,7 @@ from app.database import get_db
 from app.models import Answer, GpsPoint, Question, User
 from app.schemas import AnswerRequest, AnswerResponse, NextQuestionResponse
 from app.services.question_service import (
+    MIN_CANDIDATES,
     build_candidates_excluding_used_pois,
     fetch_user_used_poi_ids,
     get_next_question,
@@ -16,9 +18,6 @@ from app.services.question_service import (
 from app.services.scoring_service import compute_score, retroactive_score_update
 
 router = APIRouter(prefix="/game", tags=["game"])
-
-# Must match default min_candidates in get_next_question
-_MIN_GAME_CANDIDATES = 3
 
 
 @router.get("/next-question", response_model=NextQuestionResponse)
@@ -68,7 +67,7 @@ async def submit_answer(
         gps_point.lat,
         gps_point.lon,
         excluded,
-        _MIN_GAME_CANDIDATES,
+        MIN_CANDIDATES,
     )
     candidate_map = {c["id"]: c for c in candidates}
     if body.selected_poi_id not in candidate_map:
@@ -85,9 +84,14 @@ async def submit_answer(
         selected_poi_id=body.selected_poi_id,
     )
     db.add(answer)
-    await db.flush()
+    try:
+        await db.flush()
+    except IntegrityError:
+        # Two concurrent submits raced past the check above; the unique
+        # constraint on (user_id, question_id) catches the loser.
+        raise HTTPException(status_code=409, detail="Already answered this question")
 
-    score = await compute_score(db, body.question_id, body.selected_poi_id, selected_distance)
+    score = compute_score(selected_distance)
     answer.score_awarded = score
     user.score += score
     user.answers_count += 1
