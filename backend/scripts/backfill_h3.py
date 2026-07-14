@@ -12,11 +12,11 @@ import sys
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
-import h3
 from sqlalchemy import select, update
 
 from app.config import settings
 from app.database import async_session_factory
+from app.geo import lat_lon_to_h3
 from app.models import GpsPoint
 
 
@@ -33,7 +33,7 @@ async def backfill():
 
         count = 0
         for gp in points:
-            cell = h3.latlng_to_cell(gp.lat, gp.lon, settings.h3_resolution)
+            cell = lat_lon_to_h3(gp.lat, gp.lon)
             await db.execute(
                 update(GpsPoint)
                 .where(GpsPoint.id == gp.id)

@@ -18,23 +18,28 @@ Usage:
 
 import argparse
 import datetime
-import json
 import logging
 import math
 import os
 import random
 import sys
 import uuid
+import zoneinfo
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 from app.regions import LOS_ANGELES_BBOX
+from scripts.overture_common import connect_postgres, fetch_overture_places, upsert_places
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s  %(message)s")
 log = logging.getLogger(__name__)
 
 # Default: Greater Los Angeles (same bounds as app.regions / Phase 1 study area)
 DEFAULT_BBOX = LOS_ANGELES_BBOX
+
+# Timestamps use the study-area zone so generated visits match the LA local
+# times the app displays, including across DST changes.
+LA_TZ = zoneinfo.ZoneInfo("America/Los_Angeles")
 
 # Time-of-day distributions per category bucket (hour weights)
 # Reflects real-world visitation patterns
@@ -79,98 +84,6 @@ def get_bbox(args):
     return DEFAULT_BBOX
 
 
-def fetch_overture_places(bbox):
-    """Pull real POIs from Overture Maps S3 via DuckDB."""
-    import duckdb
-
-    lon_min, lat_min, lon_max, lat_max = bbox
-    log.info("Connecting to Overture Maps S3 (bbox: %.4f,%.4f -> %.4f,%.4f)",
-             lon_min, lat_min, lon_max, lat_max)
-
-    con = duckdb.connect()
-    con.execute("INSTALL spatial; LOAD spatial;")
-    con.execute("INSTALL httpfs; LOAD httpfs;")
-    con.execute("SET s3_region='us-west-2';")
-
-    query = f"""
-    SELECT
-        id,
-        names,
-        categories,
-        ST_Y(ST_Centroid(geometry)) AS lat,
-        ST_X(ST_Centroid(geometry)) AS lon,
-        ST_AsText(geometry) AS wkt
-    FROM read_parquet(
-        's3://overturemaps-us-west-2/release/2026-02-18.0/theme=places/type=place/*'
-    )
-    WHERE bbox.xmin >= {lon_min}
-      AND bbox.xmax <= {lon_max}
-      AND bbox.ymin >= {lat_min}
-      AND bbox.ymax <= {lat_max}
-    """
-
-    log.info("Querying Overture S3 parquet — this may take 1-3 minutes...")
-    rows = con.execute(query).fetchall()
-    log.info("Fetched %d raw places from Overture", len(rows))
-    con.close()
-    return rows
-
-
-def upsert_places(conn, rows):
-    """Upsert Overture places into Postgres, adding lat/lon columns."""
-    cur = conn.cursor()
-
-    cur.execute("SELECT column_name FROM information_schema.columns "
-                "WHERE table_name = 'places' AND column_name = 'lat'")
-    has_latlon = cur.fetchone() is not None
-
-    if not has_latlon:
-        log.info("Adding lat/lon columns to places table for Haversine fallback")
-        cur.execute("ALTER TABLE places ADD COLUMN IF NOT EXISTS lat DOUBLE PRECISION")
-        cur.execute("ALTER TABLE places ADD COLUMN IF NOT EXISTS lon DOUBLE PRECISION")
-        cur.execute("CREATE INDEX IF NOT EXISTS idx_places_latlon ON places (lat, lon)")
-        conn.commit()
-
-    inserted = 0
-    for row in rows:
-        pid, names_raw, cats_raw, lat, lon, wkt = row
-        names_json = json.dumps(names_raw) if names_raw else None
-        cats_json = json.dumps(cats_raw) if cats_raw else None
-
-        cur.execute("""
-            INSERT INTO places (id, names, categories, lat, lon, geometry)
-            VALUES (%s, %s::jsonb, %s::jsonb, %s, %s, ST_GeomFromText(%s, 4326))
-            ON CONFLICT (id) DO UPDATE SET
-                names = EXCLUDED.names,
-                categories = EXCLUDED.categories,
-                lat = EXCLUDED.lat,
-                lon = EXCLUDED.lon,
-                geometry = EXCLUDED.geometry
-        """, (pid, names_json, cats_json, lat, lon, wkt))
-        inserted += 1
-
-    conn.commit()
-    cur.close()
-    log.info("Upserted %d places into Postgres", inserted)
-    return inserted
-
-
-def extract_primary_category(cats_raw) -> str:
-    """Extract the primary category string from Overture's categories field."""
-    if not cats_raw:
-        return "uncategorized"
-    if isinstance(cats_raw, str):
-        try:
-            cats_raw = json.loads(cats_raw)
-        except (json.JSONDecodeError, TypeError):
-            return "uncategorized"
-    if isinstance(cats_raw, dict):
-        return str(cats_raw.get("primary", cats_raw.get("main", "uncategorized")))
-    if isinstance(cats_raw, list) and cats_raw:
-        return str(cats_raw[0])
-    return "uncategorized"
-
-
 def pick_visit_hour(category: str) -> int:
     """Sample a realistic visit hour based on POI category."""
     profile_key = CATEGORY_TO_PROFILE.get(category, "default")
@@ -191,8 +104,9 @@ def gps_jitter(lat: float, lon: float, max_meters: float = 25.0):
 
 def generate_gps_points(conn, count: int):
     """Generate GPS visit points from real POI locations in the database."""
-    import h3
     from app.config import settings
+    from app.geo import lat_lon_to_h3
+    from app.services.poi_service import extract_category
 
     cur = conn.cursor()
 
@@ -222,9 +136,9 @@ def generate_gps_points(conn, count: int):
     base_date = datetime.date(2026, 3, 1)
     created = 0
 
-    for i in range(count):
+    for _ in range(count):
         poi_id, poi_lat, poi_lon, cats_text = random.choice(all_pois)
-        category = extract_primary_category(cats_text)
+        category = extract_category(cats_text)
 
         lat, lon = gps_jitter(poi_lat, poi_lon, max_meters=20.0)
 
@@ -237,16 +151,13 @@ def generate_gps_points(conn, count: int):
         ts = datetime.datetime(
             visit_date.year, visit_date.month, visit_date.day,
             hour, minute, second,
-            tzinfo=datetime.timezone(datetime.timedelta(hours=-8)),
+            tzinfo=LA_TZ,
         )
-
-        h3_cell = h3.latlng_to_cell(lat, lon, settings.h3_resolution)
-        gps_id = str(uuid.uuid4())
 
         cur.execute("""
             INSERT INTO gps_points (id, lat, lon, timestamp, source, h3_cell, created_at)
             VALUES (%s, %s, %s, %s, %s, %s, NOW())
-        """, (gps_id, lat, lon, ts, f"overture:{poi_id}", h3_cell))
+        """, (str(uuid.uuid4()), lat, lon, ts, f"overture:{poi_id}", lat_lon_to_h3(lat, lon)))
         created += 1
 
     conn.commit()
@@ -280,31 +191,22 @@ def main():
     args = parse_args()
     bbox = get_bbox(args)
 
-    from app.config import settings
-    db_url = settings.database_url.replace("postgresql+asyncpg://", "postgresql://")
-
-    import psycopg2
-    conn = psycopg2.connect(db_url)
+    conn = connect_postgres()
     log.info("Connected to database")
 
-    # Step 1: Fetch real Overture data
     overture_rows = fetch_overture_places(bbox)
     if not overture_rows:
         log.error("No places returned from Overture. Check bbox and network.")
         conn.close()
         sys.exit(1)
 
-    # Step 2: Upsert into places table
     upsert_places(conn, overture_rows)
 
-    # Step 3: Clean up old toy data
     if not args.keep_old:
         cleanup_old_data(conn)
 
-    # Step 4: Generate GPS visit points
     generate_gps_points(conn, count=args.gps_count)
 
-    # Summary
     cur = conn.cursor()
     cur.execute("SELECT COUNT(*) FROM places")
     places_count = cur.fetchone()[0]
