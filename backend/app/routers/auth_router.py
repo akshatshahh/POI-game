@@ -125,10 +125,16 @@ async def google_callback(
     user = result.scalar_one_or_none()
 
     if user is None:
-        # Check if email already taken by a local account
         email_result = await db.execute(select(User).where(User.email == email))
         existing_email_user = email_result.scalar_one_or_none()
         if existing_email_user:
+            # Never auto-link Google to a password-protected local account:
+            # registration doesn't verify emails, so anyone could register
+            # someone else's address and capture their future Google logins.
+            if existing_email_user.password_hash is not None or not userinfo.get(
+                "verified_email", False
+            ):
+                return RedirectResponse(url=f"{frontend}/login?error=email_in_use")
             existing_email_user.google_id = google_id
             existing_email_user.display_name = display_name
             existing_email_user.avatar_url = avatar_url

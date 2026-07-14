@@ -81,6 +81,19 @@ class PoiResponse(BaseModel):
     distance_meters: float
 
 
+class CandidatePoi(BaseModel):
+    """POI shown as an answer option. Deliberately excludes distance_meters:
+    the distance bonus rewards proximity, so exposing exact distances before
+    the answer would let players trivially game the score (and corrupt the
+    labels this game exists to collect)."""
+
+    id: str
+    name: str
+    category: str
+    lat: float
+    lon: float
+
+
 class GpsPointResponse(BaseModel):
     lat: float
     lon: float
@@ -93,7 +106,7 @@ class GpsPointResponse(BaseModel):
 class NextQuestionResponse(BaseModel):
     question_id: str
     gps_point: GpsPointResponse
-    candidates: list[PoiResponse]
+    candidates: list[CandidatePoi]
 
 
 class AnswerRequest(BaseModel):

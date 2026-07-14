@@ -10,13 +10,14 @@ export interface User {
   created_at: string;
 }
 
+// Candidate POIs intentionally carry no distance: the backend withholds it
+// before an answer so proximity can't be used to game the distance bonus.
 export interface Poi {
   id: string;
   name: string;
   category: string;
   lat: number;
   lon: number;
-  distance_meters: number;
 }
 
 export interface GpsPoint {

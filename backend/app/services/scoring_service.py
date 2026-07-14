@@ -7,9 +7,12 @@ Combination approach:
 
 Single player sees 6-10 points immediately.
 When others agree, scores bump up to 16-20.
+
+Each component is stored on the Answer row; score_awarded is their sum.
 """
 
 import uuid
+from collections import defaultdict
 
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -42,29 +45,17 @@ def distance_bonus(distance_meters: float) -> int:
     return 1
 
 
-def compute_score(distance_meters: float) -> int:
-    """Immediate score for an answer: base + distance bonus.
+def apply_initial_score(answer: Answer, distance_meters: float) -> int:
+    """Set the immediate score components on a new answer.
 
-    Consensus bonus is handled separately via retroactive_score_update.
+    Consensus bonus starts at 0 and is granted later by
+    retroactive_score_update. Returns the awarded total.
     """
-    return BASE_POINTS + distance_bonus(distance_meters)
-
-
-def _score_without_consensus(answer: Answer) -> int:
-    """Recover an answer's base+distance portion from its stored total.
-
-    The distance bonus is not stored on Answer, only the total, so this
-    decodes it from the score range: totals above base+max-distance-bonus
-    must include the consensus bonus. This breaks if the scoring constants
-    ever change — see the flagged refactor to store score components as
-    columns on Answer.
-    """
-    if answer.score_awarded > BASE_POINTS + MAX_DISTANCE_BONUS:
-        return answer.score_awarded - CONSENSUS_BONUS
-    if answer.score_awarded >= BASE_POINTS:
-        return answer.score_awarded
-    # Out-of-range legacy score; assume the max distance bonus.
-    return BASE_POINTS + MAX_DISTANCE_BONUS
+    answer.base_points = BASE_POINTS
+    answer.distance_bonus = distance_bonus(distance_meters)
+    answer.consensus_bonus = 0
+    answer.score_awarded = answer.base_points + answer.distance_bonus
+    return answer.score_awarded
 
 
 async def retroactive_score_update(
@@ -95,21 +86,25 @@ async def retroactive_score_update(
     )
     answers = answers_result.scalars().all()
 
+    score_diffs: dict[uuid.UUID, int] = defaultdict(int)
     for answer in answers:
         earned_consensus = (
             consensus_count >= MIN_ANSWERS_FOR_CONSENSUS
             and answer.selected_poi_id == consensus_poi_id
         )
-        new_score = _score_without_consensus(answer) + (
-            CONSENSUS_BONUS if earned_consensus else 0
+        new_bonus = CONSENSUS_BONUS if earned_consensus else 0
+        if answer.consensus_bonus != new_bonus:
+            score_diffs[answer.user_id] += new_bonus - answer.consensus_bonus
+            answer.consensus_bonus = new_bonus
+            answer.score_awarded = (
+                answer.base_points + answer.distance_bonus + answer.consensus_bonus
+            )
+
+    if score_diffs:
+        users_result = await db.execute(
+            select(User).where(User.id.in_(score_diffs.keys()))
         )
-
-        if answer.score_awarded != new_score:
-            score_diff = new_score - answer.score_awarded
-            answer.score_awarded = new_score
-
-            user_result = await db.execute(select(User).where(User.id == answer.user_id))
-            user = user_result.scalar_one()
-            user.score += score_diff
+        for user in users_result.scalars():
+            user.score += score_diffs[user.id]
 
     await db.flush()
