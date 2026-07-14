@@ -21,8 +21,22 @@ const GPS_ICON = new L.Icon({
   shadowSize: [41, 41],
 });
 
-const FIT_PADDING_TL: L.PointExpression = [50, 50];
-const FIT_PADDING_BR: L.PointExpression = [50, 220];
+// Extra bottom padding keeps the HUD from covering markers.
+const FIT_OPTIONS: L.FitBoundsOptions = {
+  paddingTopLeft: [50, 50],
+  paddingBottomRight: [50, 220],
+  maxZoom: 20,
+};
+
+/** Bounds covering the GPS point and all candidate POIs; null when there are no candidates. */
+function questionBounds(lat: number, lon: number, candidates: Poi[]): L.LatLngBounds | null {
+  if (candidates.length === 0) return null;
+  const points: L.LatLngExpression[] = [
+    [lat, lon],
+    ...candidates.map((c) => [c.lat, c.lon] as L.LatLngExpression),
+  ];
+  return L.latLngBounds(points);
+}
 
 function escapeHtml(text: string): string {
   return text
@@ -63,15 +77,13 @@ function numberedPoiIcon(
 
   const iconW = selected ? 240 : badgeSize;
   const iconH = selected ? 48 : badgeSize;
-  // Anchor on the badge center (left side of the wide selected icon)
-  const anchorX = selected ? badgeSize / 2 : badgeSize / 2;
-  const anchorY = selected ? iconH / 2 : badgeSize / 2;
 
   return L.divIcon({
     className: classes,
     html,
     iconSize: [iconW, iconH],
-    iconAnchor: [anchorX, anchorY],
+    // Anchor on the badge center (left side of the wide selected icon)
+    iconAnchor: [badgeSize / 2, iconH / 2],
   });
 }
 
@@ -93,16 +105,9 @@ function MapUpdater({ lat, lon, candidates, onMapReady }: {
   const map = useMap();
 
   useEffect(() => {
-    if (candidates.length > 0) {
-      const points: L.LatLngExpression[] = [
-        [lat, lon],
-        ...candidates.map((c) => [c.lat, c.lon] as L.LatLngExpression),
-      ];
-      map.fitBounds(L.latLngBounds(points), {
-        paddingTopLeft: FIT_PADDING_TL,
-        paddingBottomRight: FIT_PADDING_BR,
-        maxZoom: 20,
-      });
+    const bounds = questionBounds(lat, lon, candidates);
+    if (bounds) {
+      map.fitBounds(bounds, FIT_OPTIONS);
     } else {
       map.setView([lat, lon], 19);
     }
@@ -110,17 +115,9 @@ function MapUpdater({ lat, lon, candidates, onMapReady }: {
 
   useEffect(() => {
     onMapReady?.(() => {
-      if (candidates.length > 0) {
-        const points: L.LatLngExpression[] = [
-          [lat, lon],
-          ...candidates.map((c) => [c.lat, c.lon] as L.LatLngExpression),
-        ];
-        map.flyToBounds(L.latLngBounds(points), {
-          paddingTopLeft: FIT_PADDING_TL,
-          paddingBottomRight: FIT_PADDING_BR,
-          maxZoom: 20,
-          duration: 0.6,
-        });
+      const bounds = questionBounds(lat, lon, candidates);
+      if (bounds) {
+        map.flyToBounds(bounds, { ...FIT_OPTIONS, duration: 0.6 });
       } else {
         map.flyTo([lat, lon], 19, { duration: 0.6 });
       }
@@ -199,10 +196,6 @@ export function GameMap({ gpsPoint, candidates, selectedPoiId, onSelectPoi, onMa
                 L.DomEvent.stopPropagation(e.originalEvent);
                 onSelectPoi(poi.id);
               },
-            }}
-            ref={(ref) => {
-              if (!ref) return;
-              ref.setZIndexOffset(isSelected ? 2000 : dimmed ? -100 : num);
             }}
           >
             {!isSelected && (

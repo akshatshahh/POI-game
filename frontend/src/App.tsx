@@ -1,5 +1,6 @@
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-router-dom";
 import { ErrorBoundary } from "./components/ErrorBoundary";
+import { LoadingScreen } from "./components/LoadingScreen";
 import { Navbar } from "./components/Navbar";
 import { RequireAuth } from "./components/RequireAuth";
 import { Home } from "./pages/Home";
@@ -16,12 +17,7 @@ function AppShell({ user, loading, logout, refetchUser }: ReturnType<typeof useA
   // Wait for /auth/me before rendering any route — prevents protected pages
   // from briefly mounting (and calling game APIs) while auth is unknown.
   if (loading) {
-    return (
-      <div className="loading-screen">
-        <div className="spinner" />
-        <p>Loading...</p>
-      </div>
-    );
+    return <LoadingScreen label="Loading..." />;
   }
 
   return (

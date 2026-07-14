@@ -3,16 +3,13 @@ import { useNavigate } from "react-router-dom";
 import { GameMap } from "../components/GameMap";
 import { PlayMapHud } from "../components/PlayMapHud";
 import { ClockPanel } from "../components/ClockPanel";
-import { api } from "../lib/api";
+import { LoadingScreen } from "../components/LoadingScreen";
+import { api, isApiError } from "../lib/api";
 import { timeOfDay } from "../lib/timeOfDay";
 import type { AnswerResponse, Question } from "../lib/types";
 
 interface PlayProps {
   onScoreUpdate: () => void;
-}
-
-function isUnauthorized(err: unknown): boolean {
-  return err instanceof Error && /\b401\b/.test(err.message);
 }
 
 export function Play({ onScoreUpdate }: PlayProps) {
@@ -35,16 +32,11 @@ export function Play({ onScoreUpdate }: PlayProps) {
       const q = await api.get<Question>("/game/next-question");
       setQuestion(q);
     } catch (err) {
-      if (isUnauthorized(err)) {
+      if (isApiError(err, 401)) {
         navigate("/", { replace: true });
         return;
       }
-      const msg = err instanceof Error ? err.message : "Failed to load question";
-      if (msg.includes("404")) {
-        setError("No more questions available. Check back later!");
-      } else {
-        setError(msg);
-      }
+      setError(err instanceof Error ? err.message : "Failed to load question");
       setQuestion(null);
     } finally {
       setLoading(false);
@@ -66,12 +58,11 @@ export function Play({ onScoreUpdate }: PlayProps) {
       setFeedback(result);
       onScoreUpdate();
     } catch (err) {
-      if (isUnauthorized(err)) {
+      if (isApiError(err, 401)) {
         navigate("/", { replace: true });
         return;
       }
-      const msg = err instanceof Error ? err.message : "Submission failed";
-      setError(msg);
+      setError(err instanceof Error ? err.message : "Submission failed");
     } finally {
       setSubmitting(false);
     }
@@ -80,10 +71,7 @@ export function Play({ onScoreUpdate }: PlayProps) {
   if (loading) {
     return (
       <div className="play-map-stack play-map-stack--loading">
-        <div className="loading-screen">
-          <div className="spinner" />
-          <p>Loading question…</p>
-        </div>
+        <LoadingScreen label="Loading question…" />
       </div>
     );
   }

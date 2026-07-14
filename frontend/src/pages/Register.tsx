@@ -1,6 +1,6 @@
 import { type FormEvent, useState } from "react";
 import { Link } from "react-router-dom";
-import { api, getGoogleLoginUrl } from "../lib/api";
+import { api, getGoogleLoginUrl, isApiError } from "../lib/api";
 import { GoogleLogo } from "../components/GoogleLogo";
 import type { User } from "../lib/types";
 
@@ -49,13 +49,13 @@ export function Register({ onAuth }: RegisterProps) {
       );
       onAuth();
     } catch (err) {
-      const msg = err instanceof Error ? err.message : "Registration failed";
-      if (msg.includes("409")) {
+      if (isApiError(err, 409)) {
         setError("Username or email already taken");
-      } else if (msg.includes("422")) {
+      } else if (isApiError(err, 422)) {
+        // FastAPI 422 detail is a structured array, not a display string.
         setError("Please fix the validation errors above");
       } else {
-        setError(msg);
+        setError(err instanceof Error ? err.message : "Registration failed");
       }
     } finally {
       setSubmitting(false);
