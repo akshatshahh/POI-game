@@ -47,3 +47,6 @@ htmlcov/
 
 # Google OAuth secrets
 client_secret_*.json
+
+# Local data exports (POI dumps, samples)
+data/exports/
