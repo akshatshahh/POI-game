@@ -1,5 +1,23 @@
 const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:8000";
 
+/** Error thrown for non-2xx responses, carrying the HTTP status and the
+ * backend's `detail` message so pages can branch on status instead of
+ * pattern-matching message strings. */
+export class ApiError extends Error {
+  status: number;
+
+  constructor(status: number, detail?: string) {
+    super(detail || `Request failed (${status})`);
+    this.name = "ApiError";
+    this.status = status;
+  }
+}
+
+export function isApiError(err: unknown, status?: number): err is ApiError {
+  if (!(err instanceof ApiError)) return false;
+  return status === undefined || err.status === status;
+}
+
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   const headers: Record<string, string> = {
     ...(options.headers as Record<string, string>),
@@ -14,7 +32,14 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
     headers,
   });
   if (!res.ok) {
-    throw new Error(`API error: ${res.status}`);
+    let detail: string | undefined;
+    try {
+      const body = await res.json();
+      if (typeof body?.detail === "string") detail = body.detail;
+    } catch {
+      // Non-JSON error body; fall back to the generic message.
+    }
+    throw new ApiError(res.status, detail);
   }
   return res.json();
 }

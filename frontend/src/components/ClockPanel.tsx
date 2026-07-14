@@ -1,20 +1,8 @@
 import type { GpsPoint } from "../lib/types";
+import { parseLocalTime } from "../lib/timeOfDay";
 
 interface ClockPanelProps {
   gpsPoint: GpsPoint;
-}
-
-function parseTime(time: string | null | undefined): { hours: number; minutes: number } | null {
-  if (!time) return null;
-  const match = time.trim().match(/^(\d{1,2}):(\d{2})\s*(AM|PM)?$/i);
-  if (!match) return null;
-  let hours = parseInt(match[1], 10);
-  const minutes = parseInt(match[2], 10);
-  const period = match[3]?.toUpperCase();
-  if (period === "PM" && hours < 12) hours += 12;
-  if (period === "AM" && hours === 12) hours = 0;
-  if (Number.isNaN(hours) || Number.isNaN(minutes)) return null;
-  return { hours, minutes };
 }
 
 function ClockFace({ hours, minutes }: { hours: number; minutes: number }) {
@@ -98,7 +86,7 @@ function ClockFace({ hours, minutes }: { hours: number; minutes: number }) {
 }
 
 export function ClockPanel({ gpsPoint }: ClockPanelProps) {
-  const parsed = parseTime(gpsPoint.local_time);
+  const parsed = parseLocalTime(gpsPoint.local_time);
   if (!parsed && !gpsPoint.local_time && !gpsPoint.weekday && !gpsPoint.local_date) return null;
 
   return (

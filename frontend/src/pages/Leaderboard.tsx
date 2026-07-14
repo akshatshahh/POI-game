@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { api, safeAvatarUrl } from "../lib/api";
+import { LoadingScreen } from "../components/LoadingScreen";
+import { api, isApiError, safeAvatarUrl } from "../lib/api";
 import type { LeaderboardEntry } from "../lib/types";
 
 export function Leaderboard() {
@@ -15,7 +16,7 @@ export function Leaderboard() {
         const data = await api.get<LeaderboardEntry[]>("/leaderboard?limit=50");
         setEntries(data);
       } catch (err) {
-        if (err instanceof Error && /\b401\b/.test(err.message)) {
+        if (isApiError(err, 401)) {
           navigate("/", { replace: true });
           return;
         }
@@ -30,10 +31,7 @@ export function Leaderboard() {
   if (loading) {
     return (
       <div className="page leaderboard-page">
-        <div className="loading-screen" style={{ height: "auto", paddingTop: "4rem" }}>
-          <div className="spinner" />
-          <p>Loading leaderboard...</p>
-        </div>
+        <LoadingScreen label="Loading leaderboard..." style={{ height: "auto", paddingTop: "4rem" }} />
       </div>
     );
   }
