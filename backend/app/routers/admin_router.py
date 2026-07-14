@@ -1,20 +1,21 @@
 """Admin endpoints: GPS point import and label export."""
 
 import csv
-import io
 import datetime
+import io
+import json
 
 from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
 from fastapi.responses import StreamingResponse
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth import require_admin
 from app.database import get_db
+from app.geo import lat_lon_to_h3
 from app.models import Answer, GpsPoint, Question, User
 from app.schemas import GpsPointBulkRequest, GpsPointBulkResponse
 from app.services.poi_service import get_nearby_pois
-from app.services.question_service import _lat_lon_to_h3
 
 router = APIRouter(prefix="/admin", tags=["admin"])
 
@@ -30,6 +31,21 @@ def _excel_safe(value: object) -> str:
     return s
 
 
+def _make_gps_point(
+    lat: float,
+    lon: float,
+    timestamp: datetime.datetime | None,
+    source: str | None,
+) -> GpsPoint:
+    return GpsPoint(
+        lat=lat,
+        lon=lon,
+        timestamp=timestamp,
+        source=source,
+        h3_cell=lat_lon_to_h3(lat, lon),
+    )
+
+
 @router.post("/gps-points/bulk", response_model=GpsPointBulkResponse)
 async def bulk_import_gps_points(
     body: GpsPointBulkRequest,
@@ -38,14 +54,7 @@ async def bulk_import_gps_points(
 ) -> dict:
     created = 0
     for point in body.points:
-        gps = GpsPoint(
-            lat=point.lat,
-            lon=point.lon,
-            timestamp=point.timestamp,
-            source=point.source,
-            h3_cell=_lat_lon_to_h3(point.lat, point.lon),
-        )
-        db.add(gps)
+        db.add(_make_gps_point(point.lat, point.lon, point.timestamp, point.source))
         created += 1
 
     await db.flush()
@@ -115,11 +124,7 @@ async def upload_gps_csv(
         if source is not None and isinstance(source, str):
             source = source.strip() or None
 
-        gps = GpsPoint(
-            lat=lat, lon=lon, timestamp=timestamp, source=source,
-            h3_cell=_lat_lon_to_h3(lat, lon),
-        )
-        db.add(gps)
+        db.add(_make_gps_point(lat, lon, timestamp, source))
         created += 1
 
     await db.flush()
@@ -143,7 +148,6 @@ async def export_labels(
     rows = result.all()
 
     if format == "json":
-        import json
         records = [
             {
                 "answer_id": str(answer.id),
@@ -204,10 +208,11 @@ async def poi_quality_report(
     ),
 ) -> dict:
     """Check candidate density (scans at most 200 points to limit DB load)."""
-    result = await db.execute(select(GpsPoint).order_by(GpsPoint.created_at.asc()))
-    gps_points = result.scalars().all()
-
-    sample = gps_points[:MAX_POI_QUALITY_SCAN]
+    total_points = (await db.execute(select(func.count(GpsPoint.id)))).scalar_one()
+    result = await db.execute(
+        select(GpsPoint).order_by(GpsPoint.created_at.asc()).limit(MAX_POI_QUALITY_SCAN)
+    )
+    sample = result.scalars().all()
     report: list[dict] = []
     total_candidates = 0
     sparse_count = 0
@@ -231,9 +236,9 @@ async def poi_quality_report(
 
     n = len(sample)
     return {
-        "total_gps_points": len(gps_points),
+        "total_gps_points": total_points,
         "scanned_points": n,
-        "scan_truncated": len(gps_points) > MAX_POI_QUALITY_SCAN,
+        "scan_truncated": total_points > MAX_POI_QUALITY_SCAN,
         "sparse_points_in_sample": sparse_count,
         "avg_candidates_in_sample": round(total_candidates / max(n, 1), 1),
         "points": report,

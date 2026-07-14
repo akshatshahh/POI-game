@@ -5,16 +5,26 @@ Supports two modes:
   - Haversine mode (cloud deploy with flat lat/lon columns)
 
 Auto-detects which mode to use based on whether the 'geometry' column exists.
+The detection result is cached for the process lifetime, so adding the
+geometry column to a running deployment requires a backend restart.
 """
 
-import math
+import json
 
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
+from app.geo import haversine_meters
 
 _use_postgis: bool | None = None
+
+# Meters per degree of latitude, used to turn a radius into a bounding box.
+_METERS_PER_DEGREE = 111_000
+
+# Degrees of longitude shrink with latitude (by cos(lat)); widen the box to
+# compensate. 1.5 covers latitudes up to ~48°, fine for the LA study area.
+_LON_MARGIN_FACTOR = 1.5
 
 
 async def _detect_mode(db: AsyncSession) -> bool:
@@ -28,16 +38,6 @@ async def _detect_mode(db: AsyncSession) -> bool:
     ))
     _use_postgis = result.first() is not None
     return _use_postgis
-
-
-def _haversine(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
-    """Haversine distance in meters between two lat/lon points."""
-    R = 6_371_000
-    phi1, phi2 = math.radians(lat1), math.radians(lat2)
-    dphi = math.radians(lat2 - lat1)
-    dlam = math.radians(lon2 - lon1)
-    a = math.sin(dphi / 2) ** 2 + math.cos(phi1) * math.cos(phi2) * math.sin(dlam / 2) ** 2
-    return R * 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
 
 
 async def get_nearby_pois(
@@ -83,13 +83,13 @@ async def _query_postgis(
     """)
     result = await db.execute(query, {"lat": lat, "lon": lon, "radius": radius, "limit": limit})
     rows = result.mappings().all()
-    return [_row_to_poi(row, postgis=True) for row in rows]
+    return [_row_to_poi(row, row["distance_meters"]) for row in rows]
 
 
 async def _query_haversine(
     db: AsyncSession, lat: float, lon: float, radius: int, limit: int,
 ) -> list[dict]:
-    deg_margin = radius / 111_000 * 1.5
+    deg_margin = radius / _METERS_PER_DEGREE * _LON_MARGIN_FACTOR
     query = text("""
         SELECT id, names::text AS names_raw, categories::text AS categories_raw, lat, lon
         FROM places
@@ -108,35 +108,27 @@ async def _query_haversine(
 
     pois = []
     for row in rows:
-        dist = _haversine(lat, lon, row["lat"], row["lon"])
+        dist = haversine_meters(lat, lon, row["lat"], row["lon"])
         if dist <= radius:
-            pois.append({
-                "id": str(row["id"]),
-                "name": _extract_name(row["names_raw"]),
-                "category": _extract_category(row["categories_raw"]),
-                "lat": row["lat"],
-                "lon": row["lon"],
-                "distance_meters": round(dist, 1),
-            })
+            pois.append(_row_to_poi(row, dist))
     pois.sort(key=lambda p: p["distance_meters"])
     return pois[:limit]
 
 
-def _row_to_poi(row: dict, postgis: bool = False) -> dict:
+def _row_to_poi(row: dict, distance_meters: float) -> dict:
     return {
         "id": str(row["id"]),
         "name": _extract_name(row["names_raw"]),
-        "category": _extract_category(row["categories_raw"]),
+        "category": extract_category(row["categories_raw"]),
         "lat": row["lat"],
         "lon": row["lon"],
-        "distance_meters": round(row["distance_meters"], 1) if postgis else 0.0,
+        "distance_meters": round(distance_meters, 1),
     }
 
 
 def _extract_name(names_raw: str | None) -> str:
     if not names_raw:
         return "Unknown"
-    import json
     try:
         names = json.loads(names_raw)
         if isinstance(names, dict):
@@ -151,10 +143,9 @@ def _extract_name(names_raw: str | None) -> str:
     return str(names_raw)[:100] if names_raw else "Unknown"
 
 
-def _extract_category(categories_raw: str | None) -> str:
+def extract_category(categories_raw: str | None) -> str:
     if not categories_raw:
         return "uncategorized"
-    import json
     try:
         cats = json.loads(categories_raw)
         if isinstance(cats, dict):

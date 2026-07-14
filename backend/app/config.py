@@ -26,6 +26,13 @@ class Settings(BaseSettings):
             raise ValueError("SECRET_KEY must be set")
         return v
 
+    @field_validator("frontend_url", "backend_url")
+    @classmethod
+    def strip_trailing_slash(cls, v: str) -> str:
+        # A trailing slash in FRONTEND_URL would break the exact-match CORS
+        # origin check in main.py.
+        return v.rstrip("/")
+
     @model_validator(mode="after")
     def validate_production_secrets(self) -> "Settings":
         if self.environment.lower() == "production":

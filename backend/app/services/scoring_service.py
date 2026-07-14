@@ -14,7 +14,7 @@ import uuid
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models import Answer
+from app.models import Answer, User
 
 BASE_POINTS = 5
 MAX_DISTANCE_BONUS = 5
@@ -42,17 +42,29 @@ def distance_bonus(distance_meters: float) -> int:
     return 1
 
 
-async def compute_score(
-    db: AsyncSession,
-    question_id: uuid.UUID,
-    selected_poi_id: str,
-    selected_poi_distance: float = 0.0,
-) -> int:
-    """Compute immediate score: base + distance bonus.
+def compute_score(distance_meters: float) -> int:
+    """Immediate score for an answer: base + distance bonus.
 
     Consensus bonus is handled separately via retroactive_score_update.
     """
-    return BASE_POINTS + distance_bonus(selected_poi_distance)
+    return BASE_POINTS + distance_bonus(distance_meters)
+
+
+def _score_without_consensus(answer: Answer) -> int:
+    """Recover an answer's base+distance portion from its stored total.
+
+    The distance bonus is not stored on Answer, only the total, so this
+    decodes it from the score range: totals above base+max-distance-bonus
+    must include the consensus bonus. This breaks if the scoring constants
+    ever change — see the flagged refactor to store score components as
+    columns on Answer.
+    """
+    if answer.score_awarded > BASE_POINTS + MAX_DISTANCE_BONUS:
+        return answer.score_awarded - CONSENSUS_BONUS
+    if answer.score_awarded >= BASE_POINTS:
+        return answer.score_awarded
+    # Out-of-range legacy score; assume the max distance bonus.
+    return BASE_POINTS + MAX_DISTANCE_BONUS
 
 
 async def retroactive_score_update(
@@ -62,10 +74,8 @@ async def retroactive_score_update(
     """Re-evaluate consensus bonus for all answers on a question.
 
     When 2+ players pick the same POI, all of them get the consensus bonus.
-    If consensus shifts, bonuses are adjusted accordingly.
+    If consensus shifts, bonuses are adjusted accordingly (scores can go down).
     """
-    from app.models import User
-
     result = await db.execute(
         select(Answer.selected_poi_id, func.count(Answer.id).label("cnt"))
         .where(Answer.question_id == question_id)
@@ -86,17 +96,13 @@ async def retroactive_score_update(
     answers = answers_result.scalars().all()
 
     for answer in answers:
-        base_and_dist = BASE_POINTS + distance_bonus(0)
-        if answer.score_awarded > BASE_POINTS + MAX_DISTANCE_BONUS:
-            base_and_dist = answer.score_awarded - CONSENSUS_BONUS
-        elif answer.score_awarded >= BASE_POINTS:
-            base_and_dist = answer.score_awarded
-
         earned_consensus = (
             consensus_count >= MIN_ANSWERS_FOR_CONSENSUS
             and answer.selected_poi_id == consensus_poi_id
         )
-        new_score = base_and_dist + (CONSENSUS_BONUS if earned_consensus else 0)
+        new_score = _score_without_consensus(answer) + (
+            CONSENSUS_BONUS if earned_consensus else 0
+        )
 
         if answer.score_awarded != new_score:
             score_diff = new_score - answer.score_awarded
