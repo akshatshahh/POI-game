@@ -11,6 +11,7 @@ import pytest
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+from sqlalchemy.pool import StaticPool
 
 from app.database import Base, get_db
 from app.main import app
@@ -18,7 +19,9 @@ from app.models import User
 
 TEST_DATABASE_URL = "sqlite+aiosqlite:///:memory:"
 
-engine = create_async_engine(TEST_DATABASE_URL, echo=False)
+# StaticPool keeps every session on one connection; otherwise each pooled
+# connection would get its own empty in-memory SQLite database.
+engine = create_async_engine(TEST_DATABASE_URL, echo=False, poolclass=StaticPool)
 TestSessionLocal = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
 
 
