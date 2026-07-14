@@ -7,15 +7,20 @@
 cd backend
 source .venv/bin/activate
 pip install -r requirements.txt
+pip install -r requirements-dev.txt  # pytest, pytest-asyncio, aiosqlite
 python -m pytest tests/ -v
 ```
 
-15 tests covering:
+Tests cover:
 - Health endpoint (mocked DB)
 - Auth: unauthenticated access, authenticated profile, Google redirect, logout
 - Game: unauthenticated access, no questions available, invalid question submission
-- Leaderboard: empty board, board with users
+- Leaderboard: auth required, hidden zero-answer users, ranked entries
 - Admin: non-admin rejection, bulk GPS import, label export
+- Scoring: distance-bonus tiers, score-range invariants (unit tests, no DB)
+
+Note: happy-path answer-submission tests need Postgres with a seeded `places`
+table — the SQLite fixture has no `places`, so those flows are manual for now.
 
 ### Frontend
 ```bash
@@ -66,7 +71,7 @@ npm run build     # Build verification
 - [ ] Non-admin users get 403 on admin endpoints
 
 ### Scoring
-- [ ] First answer to a question awards participation points (2)
-- [ ] Answer matching consensus awards full points (10)
-- [ ] Scores update retroactively when consensus shifts
+- [ ] Any answer awards base 5 points + distance bonus 1–5 (closer = more)
+- [ ] When a second player picks the same POI, both gain the +10 consensus bonus
+- [ ] Scores update retroactively when consensus shifts (totals can decrease)
 - [ ] User total score reflects sum of all awarded points
