@@ -192,7 +192,7 @@ See `docs/TESTING.md` for the full manual test checklist.
 | GET | `/auth/google/callback` | No | OAuth callback (internal) |
 | GET | `/auth/me` | Yes | Current user profile |
 | POST | `/auth/logout` | No | Clear HttpOnly session cookie (JSON `{"ok":true}`) |
-| GET | `/pois/nearby` | Yes | Query nearby POIs by lat/lon |
+| GET | `/pois/nearby` | Admin | Query nearby POIs by lat/lon (includes distances) |
 | GET | `/game/next-question` | Yes | Get next question for user |
 | POST | `/game/answer` | Yes | Submit POI selection |
 | GET | `/leaderboard` | Yes | Ranked player list (players with ≥1 answer) |

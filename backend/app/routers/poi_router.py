@@ -1,9 +1,14 @@
-"""Endpoints for querying nearby POIs."""
+"""Endpoints for querying nearby POIs.
+
+Admin-only: the response includes exact distances, which players could use
+(with a question's GPS coordinates) to reverse-engineer the distance bonus.
+The game UI never calls this endpoint.
+"""
 
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.auth import get_current_user
+from app.auth import require_admin
 from app.database import get_db
 from app.models import User
 from app.schemas import PoiResponse
@@ -18,7 +23,7 @@ async def nearby_pois(
     lon: float = Query(..., ge=-180, le=180, description="Longitude"),
     radius: int = Query(200, ge=10, le=5000, description="Search radius in meters"),
     limit: int = Query(10, ge=1, le=50, description="Max results"),
-    _user: User = Depends(get_current_user),
+    _admin: User = Depends(require_admin),
     db: AsyncSession = Depends(get_db),
 ) -> list[dict]:
     return await get_nearby_pois(db, lat=lat, lon=lon, radius_meters=radius, max_results=limit)

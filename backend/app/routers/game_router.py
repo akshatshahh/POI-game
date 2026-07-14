@@ -15,7 +15,7 @@ from app.services.question_service import (
     fetch_user_used_poi_ids,
     get_next_question,
 )
-from app.services.scoring_service import compute_score, retroactive_score_update
+from app.services.scoring_service import apply_initial_score, retroactive_score_update
 
 router = APIRouter(prefix="/game", tags=["game"])
 
@@ -91,9 +91,7 @@ async def submit_answer(
         # constraint on (user_id, question_id) catches the loser.
         raise HTTPException(status_code=409, detail="Already answered this question")
 
-    score = compute_score(selected_distance)
-    answer.score_awarded = score
-    user.score += score
+    user.score += apply_initial_score(answer, selected_distance)
     user.answers_count += 1
     await db.flush()
 

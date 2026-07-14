@@ -89,6 +89,11 @@ class Answer(Base):
         UUID(as_uuid=True), ForeignKey("users.id"), nullable=False, index=True
     )
     selected_poi_id: Mapped[str] = mapped_column(String(255), nullable=False)
+    # Score components are stored explicitly so consensus can be re-evaluated
+    # (and constants tuned) without decoding anything from the total.
+    base_points: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+    distance_bonus: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+    consensus_bonus: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
     score_awarded: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
     created_at: Mapped[datetime.datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()

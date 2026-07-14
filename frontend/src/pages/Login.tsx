@@ -16,8 +16,14 @@ export function Login({ onAuth }: LoginProps) {
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
-    if (searchParams.get("error") === "oauth") {
+    const oauthError = searchParams.get("error");
+    if (oauthError === "oauth") {
       setError("Google sign-in failed or was cancelled. Please try again.");
+      setSearchParams({}, { replace: true });
+    } else if (oauthError === "email_in_use") {
+      setError(
+        "An account with this email already exists. Log in with your username and password instead.",
+      );
       setSearchParams({}, { replace: true });
     }
   }, [searchParams, setSearchParams]);
