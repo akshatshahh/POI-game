@@ -62,6 +62,13 @@ export function Play({ onScoreUpdate }: PlayProps) {
         navigate("/", { replace: true });
         return;
       }
+      if (isApiError(err, 409)) {
+        // Question was finalized (or answered in another tab) while this one
+        // was open — it can't accept the answer, so move on instead of
+        // leaving the player stuck on a dead question.
+        await fetchQuestion();
+        return;
+      }
       setError(err instanceof Error ? err.message : "Submission failed");
     } finally {
       setSubmitting(false);

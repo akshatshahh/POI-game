@@ -21,8 +21,8 @@ _LA_TZ = zoneinfo.ZoneInfo("America/Los_Angeles")
 # Answer validation in game_router uses the same threshold.
 MIN_CANDIDATES = 3
 
-# Hard cap on how many POIs one oversampling query may fetch.
-_MAX_OVERSAMPLE = 400
+# Hard cap on the candidate set frozen onto a question at creation.
+_MAX_FROZEN_CANDIDATES = 400
 
 # How many low-answer-count GPS points to try before giving up on a question.
 _GPS_SAMPLE_SIZE = 5
@@ -47,30 +47,6 @@ def _gps_in_study_area(lat: float, lon: float) -> bool:
     if not settings.restrict_gps_to_la:
         return True
     return point_in_los_angeles(lat, lon)
-
-
-async def build_candidates_excluding_used_pois(
-    db: AsyncSession,
-    lat: float,
-    lon: float,
-    excluded: set[str],
-    min_needed: int,
-) -> list[dict]:
-    """Nearby POIs, excluding place IDs the user already picked on a past question.
-
-    Oversamples from the DB when many nearby POIs are filtered out.
-    """
-    max_out = settings.poi_max_candidates
-    for mult in (3, 6, 12, 24, 48):
-        cap = min(max(max_out * mult, min_needed * mult), _MAX_OVERSAMPLE)
-        pois = await get_nearby_pois(db, lat=lat, lon=lon, max_results=cap)
-        filtered = [p for p in pois if p["id"] not in excluded]
-        if len(filtered) >= min_needed:
-            return filtered[:max_out]
-        if cap == _MAX_OVERSAMPLE:
-            # Already fetched at the cap; a larger multiplier can't help.
-            break
-    return []
 
 
 async def get_next_question(
@@ -159,14 +135,22 @@ async def _next_question(
     for gps_point in gps_rows:
         if not _gps_in_study_area(gps_point.lat, gps_point.lon):
             continue
-        pois = await build_candidates_excluding_used_pois(
-            db, gps_point.lat, gps_point.lon, excluded_pois, min_candidates
-        )
-        if len(pois) < min_candidates:
-            continue
 
         question = await _get_or_create_question(db, gps_point)
-        return _build_response(question, gps_point, pois)
+        if question.candidate_density < min_candidates:
+            continue
+
+        # The displayed options come from the SAME frozen set answers are
+        # validated against, so what the user sees is always acceptable at
+        # submit time and reconstructable at export time. Per-user filtering
+        # only hides POIs this user already picked on other questions.
+        shown = [
+            c for c in (question.candidates or []) if c["id"] not in excluded_pois
+        ][: settings.poi_max_candidates]
+        if len(shown) < min_candidates:
+            continue
+
+        return _build_response(question, gps_point, shown)
 
     return None
 
@@ -193,12 +177,11 @@ async def build_question_candidates(
 ) -> list[dict]:
     """The full candidate set frozen onto a question at creation.
 
-    Deliberately unfiltered (no per-user exclusions) and capped only by the
-    oversampling limit, so it is a superset of anything any user is shown —
-    answers can be validated against it, and exports can reconstruct the
-    choice set.
+    Deliberately unfiltered (no per-user exclusions), so it is a superset of
+    anything any user is shown — displays are sliced from it, answers are
+    validated against it, and exports can reconstruct the choice set.
     """
-    return await get_nearby_pois(db, lat=lat, lon=lon, max_results=_MAX_OVERSAMPLE)
+    return await get_nearby_pois(db, lat=lat, lon=lon, max_results=_MAX_FROZEN_CANDIDATES)
 
 
 def _set_candidate_metadata(question: Question, candidates: list[dict]) -> None:
