@@ -2,6 +2,7 @@ import datetime
 import uuid
 
 from sqlalchemy import (
+    JSON,
     DateTime,
     Float,
     ForeignKey,
@@ -11,7 +12,7 @@ from sqlalchemy import (
     UniqueConstraint,
     func,
 )
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
@@ -59,6 +60,13 @@ class GpsPoint(Base):
 
 
 class Question(Base):
+    """One labeling task for a GPS point.
+
+    Lifecycle: active -> consensus_reached | no_consensus (both terminal,
+    marked by locked_at). Terminal questions reject new answers and their
+    GPS points are excluded from question selection.
+    """
+
     __tablename__ = "questions"
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
@@ -67,6 +75,26 @@ class Question(Base):
     )
     h3_cell: Mapped[str | None] = mapped_column(String(20), nullable=True, index=True)
     status: Mapped[str] = mapped_column(String(50), default="active", server_default="active")
+    # The full nearby-POI set frozen at question creation. Answers are
+    # validated against this list so the exported dataset can reconstruct
+    # exactly which choices annotators had.
+    candidates: Mapped[list | None] = mapped_column(
+        JSON().with_variant(JSONB, "postgresql"), nullable=True
+    )
+    # Number of POIs within the search radius; a difficulty proxy exported
+    # with every label (dense areas are harder to annotate).
+    candidate_density: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+    # How many independent answers this question collects before a consensus
+    # decision is final. Starts at the base target; escalates when annotators
+    # disagree or the area is dense.
+    answers_target: Mapped[int] = mapped_column(Integer, default=3, server_default="3")
+    votes_total: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+    consensus_poi_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    # Fraction of votes on the winning POI at lock time (top_votes / total).
+    consensus_confidence: Mapped[float | None] = mapped_column(Float, nullable=True)
+    locked_at: Mapped[datetime.datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
     created_at: Mapped[datetime.datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
     )
@@ -89,6 +117,9 @@ class Answer(Base):
         UUID(as_uuid=True), ForeignKey("users.id"), nullable=False, index=True
     )
     selected_poi_id: Mapped[str] = mapped_column(String(255), nullable=False)
+    # Distance from the GPS point to the selected POI, kept as an ML covariate
+    # (it no longer affects scoring).
+    selected_distance_meters: Mapped[float | None] = mapped_column(Float, nullable=True)
     # Score components are stored explicitly so consensus can be re-evaluated
     # (and constants tuned) without decoding anything from the total.
     base_points: Mapped[int] = mapped_column(Integer, default=0, server_default="0")

@@ -4,7 +4,7 @@ import datetime
 import uuid
 import zoneinfo
 
-from sqlalchemy import ColumnElement, func, select
+from sqlalchemy import ColumnElement, case, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
@@ -12,6 +12,7 @@ from app.geo import lat_lon_to_h3
 from app.models import Answer, GpsPoint, Question
 from app.regions import point_in_los_angeles
 from app.services.poi_service import get_nearby_pois
+from app.services.scoring_service import TERMINAL_STATUSES
 
 # Question timestamps are shown in study-area local time (the game covers LA).
 _LA_TZ = zoneinfo.ZoneInfo("America/Los_Angeles")
@@ -84,6 +85,15 @@ async def get_next_question(
     already been answered by this user. Falls back to exact GPS-point
     exclusion when the flag is off or H3 cells are not yet populated.
     """
+    # Points whose question already reached a terminal state (label locked)
+    # are finished — never serve them again.
+    closed_points = (
+        select(Question.gps_point_id)
+        .where(Question.status.in_(TERMINAL_STATUSES))
+        .scalar_subquery()
+    )
+    exclusion: list[ColumnElement] = [GpsPoint.id.notin_(closed_points)]
+
     if settings.use_h3_dedup:
         # Skip GPS points in H3 cells the user already answered.
         answered_cells = (
@@ -94,7 +104,7 @@ async def get_next_question(
             .correlate()
             .scalar_subquery()
         )
-        exclusion = [
+        exclusion += [
             GpsPoint.h3_cell.isnot(None),
             GpsPoint.h3_cell.notin_(answered_cells),
         ]
@@ -107,7 +117,7 @@ async def get_next_question(
             .correlate()
             .scalar_subquery()
         )
-        exclusion = [GpsPoint.id.notin_(answered_points)]
+        exclusion.append(GpsPoint.id.notin_(answered_points))
 
     return await _next_question(db, user_id, min_candidates, exclusion)
 
@@ -118,7 +128,13 @@ async def _next_question(
     min_candidates: int,
     exclusion: list[ColumnElement],
 ) -> dict | None:
-    """Pick the least-answered eligible GPS point that has enough candidates."""
+    """Pick the next eligible GPS point, completion-first.
+
+    Points that already have answers come first (most answers first), so
+    in-progress questions reach their consensus target and produce a usable
+    label before annotator effort is spread onto fresh points. Terminal
+    questions are excluded upstream, so "most answers" never means "done".
+    """
     answer_count = (
         select(func.count(Answer.id))
         .join(Question, Question.id == Answer.question_id)
@@ -127,10 +143,12 @@ async def _next_question(
         .scalar_subquery()
     )
 
+    in_progress_first = case((answer_count > 0, 0), else_=1)
+
     stmt = (
         select(GpsPoint)
         .where(*exclusion)
-        .order_by(answer_count.asc(), func.random())
+        .order_by(in_progress_first, answer_count.desc(), func.random())
         .limit(_GPS_SAMPLE_SIZE)
     )
 
@@ -170,6 +188,41 @@ def _build_response(question: Question, gps_point: GpsPoint, pois: list[dict]) -
     }
 
 
+async def build_question_candidates(
+    db: AsyncSession, lat: float, lon: float
+) -> list[dict]:
+    """The full candidate set frozen onto a question at creation.
+
+    Deliberately unfiltered (no per-user exclusions) and capped only by the
+    oversampling limit, so it is a superset of anything any user is shown —
+    answers can be validated against it, and exports can reconstruct the
+    choice set.
+    """
+    return await get_nearby_pois(db, lat=lat, lon=lon, max_results=_MAX_OVERSAMPLE)
+
+
+def _set_candidate_metadata(question: Question, candidates: list[dict]) -> None:
+    question.candidates = candidates
+    question.candidate_density = len(candidates)
+    # Dense areas are harder to annotate reliably: raise the annotation
+    # target up front instead of waiting for disagreement.
+    if question.candidate_density >= settings.dense_candidate_threshold:
+        question.answers_target = settings.consensus_max_target
+    else:
+        question.answers_target = settings.consensus_base_target
+
+
+async def ensure_question_candidates(
+    db: AsyncSession, question: Question, gps_point: GpsPoint
+) -> None:
+    """Backfill the frozen candidate set on questions that predate it."""
+    if question.candidates is not None:
+        return
+    candidates = await build_question_candidates(db, gps_point.lat, gps_point.lon)
+    _set_candidate_metadata(question, candidates)
+    await db.flush()
+
+
 async def _get_or_create_question(
     db: AsyncSession,
     gps_point: GpsPoint,
@@ -189,7 +242,11 @@ async def _get_or_create_question(
             h3_cell=h3_cell,
             status="active",
         )
+        candidates = await build_question_candidates(db, gps_point.lat, gps_point.lon)
+        _set_candidate_metadata(question, candidates)
         db.add(question)
         await db.flush()
+    else:
+        await ensure_question_candidates(db, question, gps_point)
 
     return question

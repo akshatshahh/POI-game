@@ -13,9 +13,23 @@ class Settings(BaseSettings):
     frontend_url: str = "http://localhost:5173"
     backend_url: str = "http://localhost:8000"
     poi_search_radius_meters: int = 150
-    poi_max_candidates: int = 30
+    # Max candidates shown per question. Kept small: long option lists in
+    # dense areas dilute agreement and overload annotators.
+    poi_max_candidates: int = 12
     h3_resolution: int = 9
-    use_h3_dedup: bool = False
+    use_h3_dedup: bool = True
+
+    # Consensus policy. A question collects consensus_base_target independent
+    # answers; if annotators disagree, or the area is dense
+    # (candidate_density >= dense_candidate_threshold), the target escalates
+    # to consensus_max_target before the label is finalized.
+    consensus_base_target: int = 3
+    consensus_max_target: int = 5
+    dense_candidate_threshold: int = 12
+    # Sybil gate: answers from accounts younger than this don't count toward
+    # consensus (they still earn participation points). 0 disables the gate;
+    # set to e.g. 60 in production.
+    consensus_min_account_age_minutes: int = 0
     # When true, only offer questions whose GPS probe lies in LOS_ANGELES_BBOX (see app.regions)
     restrict_gps_to_la: bool = True
 

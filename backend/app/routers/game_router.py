@@ -10,12 +10,10 @@ from app.database import get_db
 from app.models import Answer, GpsPoint, Question, User
 from app.schemas import AnswerRequest, AnswerResponse, NextQuestionResponse
 from app.services.question_service import (
-    MIN_CANDIDATES,
-    build_candidates_excluding_used_pois,
-    fetch_user_used_poi_ids,
+    ensure_question_candidates,
     get_next_question,
 )
-from app.services.scoring_service import apply_initial_score, retroactive_score_update
+from app.services.scoring_service import apply_initial_score, evaluate_consensus
 
 router = APIRouter(prefix="/game", tags=["game"])
 
@@ -47,6 +45,12 @@ async def submit_answer(
     if question is None:
         raise HTTPException(status_code=404, detail="Question not found")
 
+    if question.locked_at is not None:
+        raise HTTPException(
+            status_code=409,
+            detail="This question has already been finalized",
+        )
+
     existing = await db.execute(
         select(Answer).where(
             Answer.question_id == body.question_id,
@@ -61,22 +65,17 @@ async def submit_answer(
     )
     gps_point = gp_result.scalar_one()
 
-    excluded = await fetch_user_used_poi_ids(db, user.id)
-    candidates = await build_candidates_excluding_used_pois(
-        db,
-        gps_point.lat,
-        gps_point.lon,
-        excluded,
-        MIN_CANDIDATES,
-    )
-    candidate_map = {c["id"]: c for c in candidates}
+    # Answers are validated against the candidate set frozen on the question
+    # at creation, so the accepted choice set is stable and reproducible.
+    await ensure_question_candidates(db, question, gps_point)
+    candidate_map = {c["id"]: c for c in question.candidates or []}
     if body.selected_poi_id not in candidate_map:
         raise HTTPException(
             status_code=400,
             detail="Selected POI is not a valid candidate for this question",
         )
 
-    selected_distance = candidate_map[body.selected_poi_id]["distance_meters"]
+    selected_distance = candidate_map[body.selected_poi_id].get("distance_meters")
 
     answer = Answer(
         question_id=body.question_id,
@@ -95,6 +94,6 @@ async def submit_answer(
     user.answers_count += 1
     await db.flush()
 
-    await retroactive_score_update(db, body.question_id)
+    await evaluate_consensus(db, question)
 
     return answer

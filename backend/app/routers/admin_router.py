@@ -131,71 +131,142 @@ async def upload_gps_csv(
     return {"created": created, "total": created}
 
 
+def _streaming_export(payload: str, media_type: str, filename: str) -> StreamingResponse:
+    return StreamingResponse(
+        iter([payload]),
+        media_type=media_type,
+        headers={"Content-Disposition": f"attachment; filename={filename}"},
+    )
+
+
 @router.get("/export/labels")
 async def export_labels(
     format: str = Query("csv", enum=["csv", "json"]),
     _admin: User = Depends(require_admin),
     db: AsyncSession = Depends(get_db),
 ) -> StreamingResponse:
-    """Export all labels as CSV or JSON for ML training pipelines."""
+    """Export every individual annotation (one row per answer).
+
+    Annotators are identified only by opaque user_id — no email/PII, so the
+    file can be shared with research collaborators.
+    """
     result = await db.execute(
-        select(Answer, Question, GpsPoint, User)
+        select(Answer, Question, GpsPoint)
         .join(Question, Answer.question_id == Question.id)
         .join(GpsPoint, Question.gps_point_id == GpsPoint.id)
-        .join(User, Answer.user_id == User.id)
         .order_by(Answer.created_at.asc())
     )
     rows = result.all()
 
+    records = [
+        {
+            "answer_id": str(answer.id),
+            "question_id": str(answer.question_id),
+            "user_id": str(answer.user_id),
+            "gps_lat": gps_point.lat,
+            "gps_lon": gps_point.lon,
+            "gps_timestamp": gps_point.timestamp.isoformat() if gps_point.timestamp else None,
+            "h3_cell": question.h3_cell,
+            "selected_poi_id": answer.selected_poi_id,
+            "selected_distance_meters": answer.selected_distance_meters,
+            "score_awarded": answer.score_awarded,
+            "answered_at": answer.created_at.isoformat(),
+        }
+        for answer, question, gps_point in rows
+    ]
+
     if format == "json":
-        records = [
-            {
-                "answer_id": str(answer.id),
-                "question_id": str(answer.question_id),
-                "user_id": str(answer.user_id),
-                "user_email": user.email,
-                "gps_lat": gps_point.lat,
-                "gps_lon": gps_point.lon,
-                "gps_timestamp": gps_point.timestamp.isoformat() if gps_point.timestamp else None,
-                "selected_poi_id": answer.selected_poi_id,
-                "score_awarded": answer.score_awarded,
-                "answered_at": answer.created_at.isoformat(),
-            }
-            for answer, _question, gps_point, user in rows
-        ]
-        return StreamingResponse(
-            iter([json.dumps(records, indent=2)]),
-            media_type="application/json",
-            headers={"Content-Disposition": "attachment; filename=labels.json"},
+        return _streaming_export(
+            json.dumps(records, indent=2), "application/json", "labels.json"
         )
 
     output = io.StringIO()
-    writer = csv.writer(output)
-    writer.writerow([
-        "answer_id", "question_id", "user_id", "user_email",
-        "gps_lat", "gps_lon", "gps_timestamp",
-        "selected_poi_id", "score_awarded", "answered_at",
-    ])
-    for answer, _question, gps_point, user in rows:
-        writer.writerow([
-            str(answer.id),
-            str(answer.question_id),
-            str(answer.user_id),
-            _excel_safe(user.email),
-            gps_point.lat,
-            gps_point.lon,
-            gps_point.timestamp.isoformat() if gps_point.timestamp else "",
-            _excel_safe(answer.selected_poi_id),
-            answer.score_awarded,
-            answer.created_at.isoformat(),
-        ])
-
+    fieldnames = list(records[0].keys()) if records else [
+        "answer_id", "question_id", "user_id", "gps_lat", "gps_lon",
+        "gps_timestamp", "h3_cell", "selected_poi_id",
+        "selected_distance_meters", "score_awarded", "answered_at",
+    ]
+    writer = csv.DictWriter(output, fieldnames=fieldnames)
+    writer.writeheader()
+    for record in records:
+        record["selected_poi_id"] = _excel_safe(record["selected_poi_id"])
+        writer.writerow(record)
     output.seek(0)
-    return StreamingResponse(
-        iter([output.getvalue()]),
-        media_type="text/csv",
-        headers={"Content-Disposition": "attachment; filename=labels.csv"},
+    return _streaming_export(output.getvalue(), "text/csv", "labels.csv")
+
+
+@router.get("/export/consensus")
+async def export_consensus(
+    format: str = Query("csv", enum=["csv", "json"]),
+    _admin: User = Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
+) -> StreamingResponse:
+    """Export the consensus dataset (one row per question).
+
+    This is the ground-truth artifact for ML training: the consensus label,
+    its confidence, the full vote distribution, and difficulty covariates.
+    Questions still collecting answers export with status "active" and a
+    null label; filter on status/locked_at for a frozen training set.
+    """
+    vote_result = await db.execute(
+        select(
+            Answer.question_id,
+            Answer.selected_poi_id,
+            func.count(Answer.id).label("cnt"),
+        )
+        .group_by(Answer.question_id, Answer.selected_poi_id)
     )
+    votes_by_question: dict = {}
+    for question_id, poi_id, cnt in vote_result.all():
+        votes_by_question.setdefault(question_id, {})[poi_id] = cnt
+
+    result = await db.execute(
+        select(Question, GpsPoint)
+        .join(GpsPoint, Question.gps_point_id == GpsPoint.id)
+        .order_by(Question.created_at.asc())
+    )
+    rows = result.all()
+
+    records = [
+        {
+            "question_id": str(question.id),
+            "gps_lat": gps_point.lat,
+            "gps_lon": gps_point.lon,
+            "gps_timestamp": gps_point.timestamp.isoformat() if gps_point.timestamp else None,
+            "h3_cell": question.h3_cell,
+            "status": question.status,
+            "consensus_poi_id": question.consensus_poi_id,
+            "consensus_confidence": question.consensus_confidence,
+            "votes_total": question.votes_total,
+            "answers_target": question.answers_target,
+            "candidate_density": question.candidate_density,
+            "vote_distribution": votes_by_question.get(question.id, {}),
+            "locked_at": question.locked_at.isoformat() if question.locked_at else None,
+            "created_at": question.created_at.isoformat(),
+        }
+        for question, gps_point in rows
+    ]
+
+    if format == "json":
+        return _streaming_export(
+            json.dumps(records, indent=2), "application/json", "consensus.json"
+        )
+
+    output = io.StringIO()
+    fieldnames = list(records[0].keys()) if records else [
+        "question_id", "gps_lat", "gps_lon", "gps_timestamp", "h3_cell",
+        "status", "consensus_poi_id", "consensus_confidence", "votes_total",
+        "answers_target", "candidate_density", "vote_distribution",
+        "locked_at", "created_at",
+    ]
+    writer = csv.DictWriter(output, fieldnames=fieldnames)
+    writer.writeheader()
+    for record in records:
+        record["consensus_poi_id"] = _excel_safe(record["consensus_poi_id"] or "")
+        record["vote_distribution"] = json.dumps(record["vote_distribution"])
+        writer.writerow(record)
+    output.seek(0)
+    return _streaming_export(output.getvalue(), "text/csv", "consensus.csv")
 
 
 @router.get("/poi-quality")
