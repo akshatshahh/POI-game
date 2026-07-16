@@ -100,9 +100,13 @@ cp .env.example .env
 | `FRONTEND_URL` | Frontend origin (CORS + redirects) | `http://localhost:5173` |
 | `BACKEND_URL` | Backend origin (OAuth callback) | `http://localhost:8000` |
 | `POI_SEARCH_RADIUS_METERS` | Spatial search radius | `150` |
-| `POI_MAX_CANDIDATES` | Max POI candidates per question | `30` |
+| `POI_MAX_CANDIDATES` | Max POI candidates shown per question | `12` |
 | `H3_RESOLUTION` | H3 hex grid resolution (7-12) | `9` |
-| `USE_H3_DEDUP` | Enable H3-based question de-duplication | `false` |
+| `USE_H3_DEDUP` | Enable H3-based question de-duplication | `true` |
+| `CONSENSUS_BASE_TARGET` | Answers collected per question before a consensus decision | `3` |
+| `CONSENSUS_MAX_TARGET` | Escalated target for ambiguous/dense questions | `5` |
+| `DENSE_CANDIDATE_THRESHOLD` | Nearby-POI count that marks a question as dense/hard | `12` |
+| `CONSENSUS_MIN_ACCOUNT_AGE_MINUTES` | Sybil gate: min account age for votes to count (0 = off) | `0` |
 | `RESTRICT_GPS_TO_LA` | Only serve GPS probes inside the Greater LA bbox ([`app/regions.py`](backend/app/regions.py)) | `true` |
 
 ### Running Locally
@@ -198,7 +202,8 @@ See `docs/TESTING.md` for the full manual test checklist.
 | GET | `/leaderboard` | Yes | Ranked player list (players with ≥1 answer) |
 | POST | `/admin/gps-points/bulk` | Admin | Import GPS points (JSON) |
 | POST | `/admin/gps-points/upload-csv` | Admin | Import GPS points (CSV) |
-| GET | `/admin/export/labels` | Admin | Export labels (CSV/JSON) |
+| GET | `/admin/export/labels` | Admin | Raw annotations, one row per answer (CSV/JSON, no PII) |
+| GET | `/admin/export/consensus` | Admin | Consensus dataset, one row per question with label + confidence + vote distribution (CSV/JSON) |
 | GET | `/admin/poi-quality` | Admin | POI candidate density report |
 
 ## Security notes
@@ -209,20 +214,43 @@ See `docs/TESTING.md` for the full manual test checklist.
 - **Production**: Set `ENVIRONMENT=production`, `SECRET_KEY` (32+ random bytes), and real Google credentials. Never commit `.env` or OAuth client JSON (see `.gitignore`).
 - **Still recommended**: rate limiting (e.g. reverse proxy), WAF, `pip audit` / `npm audit`, structured security logging, and rotating secrets after any leak.
 
-## Scoring Algorithm (v2)
+## Consensus & Scoring (v3)
 
-Implemented in `backend/app/services/scoring_service.py`:
+Implemented in `backend/app/services/scoring_service.py`. The design goal is
+label quality: every question is an annotation task that ends in a locked,
+exportable consensus label with a confidence score.
 
-- **Base: 5 points** for every valid answer (participation)
-- **Distance bonus: 1–5 points** — the closer the selected POI is to the GPS
-  point, the higher the bonus (≤50m → 5 … >350m → 1)
-- **Consensus bonus: 10 points** — applied **retroactively** to everyone who
-  picked the most popular POI, once 2+ players have answered the question
-- If consensus shifts to a different POI later, bonuses are re-assigned, so a
-  player's total **can go down**
+**Consensus lifecycle (per question):**
 
-A single player therefore sees 6–10 points immediately; agreement with other
-players bumps that to 16–20.
+1. A question collects at least **3 independent answers** (one per user,
+   enforced by a DB unique constraint).
+2. The leading POI wins when it has **≥60% of votes AND a lead of ≥2** over
+   the runner-up (so a 2–2 tie can never pass — ties resolve by collecting
+   more votes).
+3. If annotators disagree at the base target — or the area is dense
+   (`candidate_density ≥ DENSE_CANDIDATE_THRESHOLD`) — the target escalates
+   to **5 answers** before the decision is final.
+4. The question then **locks** as `consensus_reached` (label + confidence
+   stored) or `no_consensus` (a documented ambiguous point). Locked labels
+   are immutable, so exports are reproducible.
+
+The candidate set shown to annotators is frozen on the question at creation
+(`questions.candidates`), answers are validated against it, and it is
+recoverable at export time.
+
+**Scoring:**
+
+- **5 points** per answer, immediately (participation)
+- **+10 consensus bonus**, paid **once, when the question locks**, to
+  everyone who picked the winning POI
+- **+5 difficulty bonus** on top, if the question needed the escalated target
+- No distance bonus: proximity is recorded as an ML covariate
+  (`answers.selected_distance_meters`) but never scored, so picking the
+  nearest pin earns nothing by itself. Scores never go down.
+
+**Abuse protection:** registration and login are rate-limited per IP
+(`app/rate_limit.py`), and `CONSENSUS_MIN_ACCOUNT_AGE_MINUTES` can exclude
+brand-new accounts from vote counting (they still earn participation points).
 
 ## Development Workflow
 

@@ -25,6 +25,7 @@ from app.auth import (
 from app.config import settings
 from app.database import get_db
 from app.models import User
+from app.rate_limit import login_rate_limiter, register_rate_limiter
 from app.schemas import (
     AuthSessionResponse,
     LoginRequest,
@@ -165,7 +166,11 @@ async def google_callback(
     return response
 
 
-@router.post("/register", response_model=AuthSessionResponse)
+@router.post(
+    "/register",
+    response_model=AuthSessionResponse,
+    dependencies=[Depends(register_rate_limiter)],
+)
 async def register(
     body: RegisterRequest,
     db: AsyncSession = Depends(get_db),
@@ -205,7 +210,11 @@ async def register(
     return response
 
 
-@router.post("/login", response_model=AuthSessionResponse)
+@router.post(
+    "/login",
+    response_model=AuthSessionResponse,
+    dependencies=[Depends(login_rate_limiter)],
+)
 async def login(
     body: LoginRequest,
     db: AsyncSession = Depends(get_db),

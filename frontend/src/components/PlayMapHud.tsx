@@ -170,7 +170,8 @@ export function PlayMapHud({
               <div className="hud-feedback">
                 <div className="hud-feedback-score">+{feedback.score_awarded} points</div>
                 <p className="hud-feedback-hint">
-                  Consensus bonus (+10) unlocks when others agree!
+                  +10 bonus if other players confirm your pick when this
+                  question finalizes!
                 </p>
                 {selectedPoi && (
                   <p className="hud-feedback-poi">

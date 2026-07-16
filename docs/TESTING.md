@@ -13,14 +13,18 @@ python -m pytest tests/ -v
 
 Tests cover:
 - Health endpoint (mocked DB)
-- Auth: unauthenticated access, authenticated profile, Google redirect, logout
-- Game: unauthenticated access, no questions available, invalid question submission
+- Auth: unauthenticated access, authenticated profile, Google redirect,
+  logout, Google-callback account-linking rules (mocked token exchange)
+- Game: unauthenticated access, no questions available, invalid question,
+  full happy-path submission, duplicate answer 409, locked question 409,
+  rejection of POIs outside the frozen candidate set
+- Consensus: unanimous 3-vote lock, disagreement escalation to 5,
+  no-consensus lock, difficulty bonus, locked-label immutability
 - Leaderboard: auth required, hidden zero-answer users, ranked entries
 - Admin: non-admin rejection, bulk GPS import, label export
-- Scoring: distance-bonus tiers, score-range invariants (unit tests, no DB)
 
-Note: happy-path answer-submission tests need Postgres with a seeded `places`
-table — the SQLite fixture has no `places`, so those flows are manual for now.
+Happy-path submission is testable in SQLite because answers validate against
+the candidate set frozen on the question — no `places` table needed.
 
 ### Frontend
 ```bash
@@ -70,8 +74,14 @@ npm run build     # Build verification
 - [ ] GET /admin/export/labels?format=json — downloads JSON
 - [ ] Non-admin users get 403 on admin endpoints
 
-### Scoring
-- [ ] Any answer awards base 5 points + distance bonus 1–5 (closer = more)
-- [ ] When a second player picks the same POI, both gain the +10 consensus bonus
-- [ ] Scores update retroactively when consensus shifts (totals can decrease)
-- [ ] User total score reflects sum of all awarded points
+### Consensus & Scoring
+- [ ] Any answer awards 5 participation points immediately (no distance bonus)
+- [ ] With 3 matching answers from 3 users, the question locks as
+      `consensus_reached` and each matching answer gains +10
+- [ ] A 2–1 split at 3 answers escalates the target to 5 instead of deciding
+- [ ] A 3–2 split at 5 answers locks as `no_consensus` with no bonus
+- [ ] Escalated questions that reach consensus pay +15 (consensus + difficulty)
+- [ ] Submitting to a locked question returns 409
+- [ ] Locked labels never change; scores never decrease
+- [ ] `/admin/export/consensus` includes status, label, confidence, vote
+      distribution, and candidate density for every question

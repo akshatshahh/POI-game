@@ -1,4 +1,4 @@
-"""Tests for scoring logic."""
+"""Tests for scoring and the consensus engine."""
 
 import uuid
 
@@ -9,36 +9,46 @@ from app.models import Answer, GpsPoint, Question, User
 from app.services.scoring_service import (
     BASE_POINTS,
     CONSENSUS_BONUS,
+    DIFFICULTY_BONUS,
+    STATUS_CONSENSUS,
+    STATUS_NO_CONSENSUS,
     apply_initial_score,
-    distance_bonus,
-    retroactive_score_update,
+    evaluate_consensus,
 )
 
 
-def test_distance_bonus_tiers() -> None:
-    assert distance_bonus(0) == 5
-    assert distance_bonus(50) == 5
-    assert distance_bonus(51) == 4
-    assert distance_bonus(100) == 4
-    assert distance_bonus(200) == 3
-    assert distance_bonus(350) == 2
-    assert distance_bonus(351) == 1
-    assert distance_bonus(10_000) == 1
-
-
-def test_apply_initial_score_sets_components() -> None:
+def test_apply_initial_score_is_participation_only() -> None:
     answer = Answer(
         question_id=uuid.uuid4(),
         user_id=uuid.uuid4(),
         selected_poi_id="poi-a",
     )
-    total = apply_initial_score(answer, distance_meters=40)
+    total = apply_initial_score(answer, distance_meters=40.0)
 
+    assert total == BASE_POINTS
     assert answer.base_points == BASE_POINTS
-    assert answer.distance_bonus == 5
+    assert answer.distance_bonus == 0  # proximity must not affect score
     assert answer.consensus_bonus == 0
-    assert answer.score_awarded == BASE_POINTS + 5
-    assert total == answer.score_awarded
+    assert answer.selected_distance_meters == 40.0  # kept as ML covariate
+
+
+async def _make_question(db: AsyncSession, answers_target: int = 3) -> Question:
+    gps = GpsPoint(lat=34.0, lon=-118.0)
+    db.add(gps)
+    await db.flush()
+    question = Question(
+        gps_point_id=gps.id,
+        status="active",
+        candidates=[
+            {"id": "poi-a", "name": "A", "category": "cafe", "lat": 34.0, "lon": -118.0, "distance_meters": 10.0},
+            {"id": "poi-b", "name": "B", "category": "bar", "lat": 34.0, "lon": -118.0, "distance_meters": 20.0},
+        ],
+        candidate_density=2,
+        answers_target=answers_target,
+    )
+    db.add(question)
+    await db.flush()
+    return question
 
 
 async def _make_user(db: AsyncSession, name: str) -> User:
@@ -54,51 +64,98 @@ async def _make_user(db: AsyncSession, name: str) -> User:
     return user
 
 
-async def _answer(
-    db: AsyncSession, question: Question, user: User, poi_id: str
-) -> Answer:
-    answer = Answer(
-        question_id=question.id,
-        user_id=user.id,
-        selected_poi_id=poi_id,
-    )
-    user.score += apply_initial_score(answer, distance_meters=40)
+async def _vote(db: AsyncSession, question: Question, user: User, poi_id: str) -> Answer:
+    answer = Answer(question_id=question.id, user_id=user.id, selected_poi_id=poi_id)
+    user.score += apply_initial_score(answer, distance_meters=10.0)
     db.add(answer)
     await db.flush()
+    await evaluate_consensus(db, question)
     return answer
 
 
 @pytest.mark.asyncio
-async def test_consensus_bonus_awarded_and_revoked(db_session: AsyncSession) -> None:
-    gps = GpsPoint(lat=34.0, lon=-118.0)
-    db_session.add(gps)
-    await db_session.flush()
-    question = Question(gps_point_id=gps.id, status="active")
-    db_session.add(question)
-    await db_session.flush()
+async def test_unanimous_three_votes_reach_consensus_and_lock(db_session) -> None:
+    question = await _make_question(db_session)
+    users = [await _make_user(db_session, f"u{i}") for i in range(3)]
 
-    alice = await _make_user(db_session, "alice")
-    bob = await _make_user(db_session, "bob")
+    a1 = await _vote(db_session, question, users[0], "poi-a")
+    assert question.status == "active"  # one vote is not evidence
+    assert a1.consensus_bonus == 0
 
-    # One answer: no consensus yet.
-    a_alice = await _answer(db_session, question, alice, "poi-a")
-    await retroactive_score_update(db_session, question.id)
-    assert a_alice.consensus_bonus == 0
+    await _vote(db_session, question, users[1], "poi-a")
+    assert question.status == "active"  # 2-0 is below the minimum of 3 votes
 
-    # Second matching answer: both earn the bonus.
-    a_bob = await _answer(db_session, question, bob, "poi-a")
-    await retroactive_score_update(db_session, question.id)
-    assert a_alice.consensus_bonus == CONSENSUS_BONUS
-    assert a_bob.consensus_bonus == CONSENSUS_BONUS
-    assert alice.score == a_alice.score_awarded
-    assert a_alice.score_awarded == BASE_POINTS + a_alice.distance_bonus + CONSENSUS_BONUS
+    a3 = await _vote(db_session, question, users[2], "poi-a")
+    assert question.status == STATUS_CONSENSUS
+    assert question.locked_at is not None
+    assert question.consensus_poi_id == "poi-a"
+    assert question.consensus_confidence == 1.0
+    assert question.votes_total == 3
 
-    # Three players pick a different POI: consensus shifts, bonus is revoked.
-    for name in ("carol", "dave", "erin"):
-        user = await _make_user(db_session, name)
-        await _answer(db_session, question, user, "poi-b")
-    await retroactive_score_update(db_session, question.id)
+    # Bonus paid exactly once, at lock, to every matching answer.
+    assert a1.consensus_bonus == CONSENSUS_BONUS
+    assert a3.score_awarded == BASE_POINTS + CONSENSUS_BONUS
+    assert users[0].score == BASE_POINTS + CONSENSUS_BONUS
 
-    assert a_alice.consensus_bonus == 0
-    assert a_bob.consensus_bonus == 0
-    assert alice.score == BASE_POINTS + a_alice.distance_bonus
+
+@pytest.mark.asyncio
+async def test_disagreement_escalates_then_locks_without_consensus(db_session) -> None:
+    question = await _make_question(db_session)
+    users = [await _make_user(db_session, f"u{i}") for i in range(5)]
+
+    await _vote(db_session, question, users[0], "poi-a")
+    await _vote(db_session, question, users[1], "poi-a")
+    await _vote(db_session, question, users[2], "poi-b")
+    # 2-1 at the base target: not decisive (lead < 2) → escalate, stay open.
+    assert question.status == "active"
+    assert question.answers_target == 5
+
+    await _vote(db_session, question, users[3], "poi-b")  # 2-2 tie: keep collecting
+    assert question.status == "active"
+
+    a5 = await _vote(db_session, question, users[4], "poi-b")
+    # 3-2 at the escalated cap: 60% but lead 1 → documented ambiguous point.
+    assert question.status == STATUS_NO_CONSENSUS
+    assert question.locked_at is not None
+    assert question.consensus_poi_id is None
+    assert question.consensus_confidence == 0.6
+    # No consensus → nobody gets a bonus.
+    assert a5.consensus_bonus == 0
+    assert users[0].score == BASE_POINTS
+
+
+@pytest.mark.asyncio
+async def test_decisive_majority_after_escalation_pays_difficulty_bonus(db_session) -> None:
+    question = await _make_question(db_session)
+    users = [await _make_user(db_session, f"u{i}") for i in range(4)]
+
+    await _vote(db_session, question, users[0], "poi-a")
+    await _vote(db_session, question, users[1], "poi-a")
+    await _vote(db_session, question, users[2], "poi-b")  # 2-1 → escalate
+    assert question.answers_target == 5
+
+    a4 = await _vote(db_session, question, users[3], "poi-a")
+    # 3-1: 75% with lead 2 → consensus before exhausting the cap.
+    assert question.status == STATUS_CONSENSUS
+    assert question.consensus_poi_id == "poi-a"
+    assert question.consensus_confidence == 0.75
+    # Escalated questions pay the difficulty bonus on top.
+    assert a4.consensus_bonus == CONSENSUS_BONUS + DIFFICULTY_BONUS
+    assert users[3].score == BASE_POINTS + CONSENSUS_BONUS + DIFFICULTY_BONUS
+    # The dissenter keeps participation points only.
+    assert users[2].score == BASE_POINTS
+
+
+@pytest.mark.asyncio
+async def test_locked_question_is_immutable(db_session) -> None:
+    question = await _make_question(db_session)
+    users = [await _make_user(db_session, f"u{i}") for i in range(4)]
+    for user in users[:3]:
+        await _vote(db_session, question, user, "poi-a")
+    assert question.status == STATUS_CONSENSUS
+    locked_at = question.locked_at
+
+    # A stray re-evaluation must not change anything.
+    await evaluate_consensus(db_session, question)
+    assert question.locked_at == locked_at
+    assert question.consensus_poi_id == "poi-a"
