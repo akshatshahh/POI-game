@@ -87,21 +87,19 @@ function ClockFace({ hours, minutes }: { hours: number; minutes: number }) {
 
 export function ClockPanel({ gpsPoint }: ClockPanelProps) {
   const parsed = parseLocalTime(gpsPoint.local_time);
-  if (!parsed && !gpsPoint.local_time && !gpsPoint.weekday && !gpsPoint.local_date) return null;
+  if (!parsed && !gpsPoint.local_time && !gpsPoint.weekday) return null;
 
   return (
-    <div className="clock-panel" aria-label="POI visit date/time">
-      <div className="clock-panel-label">POI visit date/time</div>
+    <div className="clock-panel" aria-label="POI visit day/time">
+      <div className="clock-panel-label">POI visit day/time</div>
       {parsed && (
         <div className="clock-panel-face">
           <ClockFace hours={parsed.hours} minutes={parsed.minutes} />
         </div>
       )}
       {gpsPoint.local_time && <div className="clock-panel-time">{gpsPoint.local_time}</div>}
-      {(gpsPoint.weekday || gpsPoint.local_date) && (
-        <div className="clock-panel-date">
-          {[gpsPoint.weekday, gpsPoint.local_date].filter(Boolean).join(", ")}
-        </div>
+      {gpsPoint.weekday && (
+        <div className="clock-panel-date">{gpsPoint.weekday}</div>
       )}
     </div>
   );

@@ -35,7 +35,7 @@ export function PlayMapHud({
     thumbTop: 0,
     thumbHeight: 0,
   });
-  const hasTime = gpsPoint.weekday || gpsPoint.local_date || gpsPoint.local_time;
+  const hasTime = !!(gpsPoint.weekday || gpsPoint.local_time);
   const selectedPoi = candidates.find((c) => c.id === selectedPoiId) ?? null;
   const selectedNum = selectedPoiId
     ? candidates.findIndex((c) => c.id === selectedPoiId) + 1
@@ -89,11 +89,10 @@ export function PlayMapHud({
       <div className="play-hud-top">
         <button type="button" className="hud-top-row" onClick={onRecenter} aria-label="Recenter map on the visit location">
           {hasTime && (
-            <span className="hud-visit-chip" title="Visit date/time">
-              <span className="hud-visit-label">Visit date/time</span>
+            <span className="hud-visit-chip" title="Visit day/time">
+              <span className="hud-visit-label">Visit day/time</span>
               <span className="hud-visit-values">
                 {gpsPoint.weekday && <strong>{gpsPoint.weekday}</strong>}
-                {gpsPoint.local_date && <span className="hud-visit-date">{gpsPoint.local_date}</span>}
                 {gpsPoint.local_time && <span className="hud-visit-time">{gpsPoint.local_time}</span>}
               </span>
             </span>

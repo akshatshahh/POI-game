@@ -155,6 +155,11 @@ async def _next_question(
     return None
 
 
+def _format_visit_time(local_ts: datetime.datetime) -> str:
+    """Compact local time for the UI, e.g. '4:42pm'."""
+    return local_ts.strftime("%I:%M%p").lstrip("0").lower()
+
+
 def _build_response(question: Question, gps_point: GpsPoint, pois: list[dict]) -> dict:
     ts = gps_point.timestamp
     local_ts = _to_la_time(ts) if ts else None
@@ -164,9 +169,10 @@ def _build_response(question: Question, gps_point: GpsPoint, pois: list[dict]) -
             "lat": gps_point.lat,
             "lon": gps_point.lon,
             "timestamp": ts.isoformat() if ts else None,
+            # Display only weekday + time (e.g. "Wednesday", "4:42pm").
             "weekday": local_ts.strftime("%A") if local_ts else None,
-            "local_date": local_ts.strftime("%B %d, %Y") if local_ts else None,
-            "local_time": local_ts.strftime("%I:%M %p") if local_ts else None,
+            "local_date": None,
+            "local_time": _format_visit_time(local_ts) if local_ts else None,
         },
         "candidates": pois,
     }
