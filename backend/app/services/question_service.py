@@ -150,7 +150,10 @@ async def _next_question(
         if len(shown) < min_candidates:
             continue
 
-        return _build_response(question, gps_point, shown)
+        prior = await db.execute(
+            select(func.count(Answer.id)).where(Answer.question_id == question.id)
+        )
+        return _build_response(question, gps_point, shown, int(prior.scalar() or 0))
 
     return None
 
@@ -160,7 +163,12 @@ def _format_visit_time(local_ts: datetime.datetime) -> str:
     return local_ts.strftime("%I:%M%p").lstrip("0").lower()
 
 
-def _build_response(question: Question, gps_point: GpsPoint, pois: list[dict]) -> dict:
+def _build_response(
+    question: Question,
+    gps_point: GpsPoint,
+    pois: list[dict],
+    prior_answers: int = 0,
+) -> dict:
     ts = gps_point.timestamp
     local_ts = _to_la_time(ts) if ts else None
     return {
@@ -175,6 +183,7 @@ def _build_response(question: Question, gps_point: GpsPoint, pois: list[dict]) -
             "local_time": _format_visit_time(local_ts) if local_ts else None,
         },
         "candidates": pois,
+        "prior_answers": prior_answers,
     }
 
 

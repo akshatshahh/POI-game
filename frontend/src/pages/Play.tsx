@@ -115,6 +115,7 @@ export function Play({ onScoreUpdate }: PlayProps) {
         gpsPoint={question.gps_point}
         candidates={question.candidates}
         selectedPoiId={selectedPoiId}
+        priorAnswers={question.prior_answers ?? 0}
         answered={!!feedback}
         feedback={feedback}
         submitting={submitting}

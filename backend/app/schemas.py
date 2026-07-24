@@ -107,6 +107,8 @@ class NextQuestionResponse(BaseModel):
     question_id: str
     gps_point: GpsPointResponse
     candidates: list[CandidatePoi]
+    # How many people already answered this question (before the current user).
+    prior_answers: int = 0
 
 
 class AnswerRequest(BaseModel):

@@ -33,6 +33,8 @@ export interface Question {
   question_id: string;
   gps_point: GpsPoint;
   candidates: Poi[];
+  /** How many other people already answered this question. */
+  prior_answers: number;
 }
 
 export interface AnswerResponse {

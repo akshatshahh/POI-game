@@ -6,6 +6,7 @@ interface PlayMapHudProps {
   gpsPoint: GpsPoint;
   candidates: Poi[];
   selectedPoiId: string | null;
+  priorAnswers?: number;
   answered: boolean;
   feedback: AnswerResponse | null;
   submitting: boolean;
@@ -20,6 +21,7 @@ export function PlayMapHud({
   gpsPoint,
   candidates,
   selectedPoiId,
+  priorAnswers = 0,
   answered,
   feedback,
   submitting,
@@ -87,22 +89,39 @@ export function PlayMapHud({
   return (
     <div className="play-hud">
       <div className="play-hud-top">
-        <button type="button" className="hud-top-row" onClick={onRecenter} aria-label="Recenter map on the visit location">
-          {hasTime && (
-            <span className="hud-visit-chip" title="Visit day/time">
-              <span className="hud-visit-label">Visit day/time</span>
-              <span className="hud-visit-values">
-                {gpsPoint.weekday && <strong>{gpsPoint.weekday}</strong>}
-                {gpsPoint.local_time && <span className="hud-visit-time">{gpsPoint.local_time}</span>}
+        <div className="hud-top-cluster">
+          <button type="button" className="hud-top-row" onClick={onRecenter} aria-label="Recenter map on the visit location">
+            {hasTime && (
+              <span className="hud-visit-chip" title="Visit day/time">
+                <span className="hud-visit-label">Visit day/time</span>
+                <span className="hud-visit-values">
+                  {gpsPoint.weekday && <strong>{gpsPoint.weekday}</strong>}
+                  {gpsPoint.local_time && <span className="hud-visit-time">{gpsPoint.local_time}</span>}
+                </span>
               </span>
+            )}
+            <span className="hud-prompt">Which POI was this person most likely visiting?</span>
+            <span className="hud-recenter" title="Recenter map">
+              <span className="hud-recenter-icon" aria-hidden="true">⊕</span>
+              <span className="hud-recenter-text">Recenter map</span>
             </span>
+          </button>
+          {priorAnswers > 0 && (
+            <div
+              className="hud-prior-badge"
+              title={
+                priorAnswers === 1
+                  ? "1 other person has answered this question"
+                  : `${priorAnswers} other people have answered this question`
+              }
+            >
+              <span className="hud-prior-count">{priorAnswers}</span>
+              <span className="hud-prior-label">
+                {priorAnswers === 1 ? "other answered" : "others answered"}
+              </span>
+            </div>
           )}
-          <span className="hud-prompt">Which POI was this person most likely visiting?</span>
-          <span className="hud-recenter" title="Recenter map">
-            <span className="hud-recenter-icon" aria-hidden="true">⊕</span>
-            <span className="hud-recenter-text">Recenter map</span>
-          </span>
-        </button>
+        </div>
       </div>
 
       <div className="play-hud-bottom">
