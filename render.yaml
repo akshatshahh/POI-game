@@ -1,0 +1,38 @@
+# Render blueprint: deploys the FastAPI backend as a free web service.
+# Docs: https://render.com/docs/blueprint-spec
+#
+# The database is NOT provisioned here — create a free Postgres on Neon
+# (https://neon.tech) and paste its connection string into DATABASE_URL.
+# The frontend deploys separately (Vercel/Cloudflare Pages); see
+# docs/DEPLOYMENT.md for the full walkthrough.
+
+services:
+  - type: web
+    name: poi-game-backend
+    runtime: python
+    plan: free
+    rootDir: backend
+    buildCommand: pip install -r requirements.txt
+    startCommand: alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /health
+    envVars:
+      - key: PYTHON_VERSION
+        value: "3.12.6"
+      - key: ENVIRONMENT
+        value: production
+      - key: SECRET_KEY
+        generateValue: true
+      - key: DATABASE_URL
+        sync: false # paste the Neon connection string (postgresql://...?sslmode=require)
+      - key: GOOGLE_CLIENT_ID
+        sync: false
+      - key: GOOGLE_CLIENT_SECRET
+        sync: false
+      - key: FRONTEND_URL
+        sync: false # your Vercel URL, e.g. https://poi-game.vercel.app
+      - key: BACKEND_URL
+        sync: false # this service's URL, e.g. https://poi-game-backend.onrender.com
+      - key: USE_H3_DEDUP
+        value: "true"
+      - key: CONSENSUS_MIN_ACCOUNT_AGE_MINUTES
+        value: "60"

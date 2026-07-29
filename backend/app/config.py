@@ -1,3 +1,5 @@
+from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
+
 from pydantic import field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -58,3 +60,29 @@ class Settings(BaseSettings):
 
 
 settings = Settings()
+
+
+def sqlalchemy_database_url() -> str:
+    """DATABASE_URL adapted for the async SQLAlchemy engine (asyncpg).
+
+    Managed Postgres hosts (Neon, Supabase, ...) hand out URLs like
+    postgresql://...?sslmode=require&channel_binding=require. The sync
+    driver (psycopg2, used by the data scripts) understands those params,
+    but asyncpg wants ssl=require and rejects channel_binding — so this
+    translates the query string instead of asking anyone to maintain two
+    connection strings.
+    """
+    url = settings.database_url
+    if url.startswith("postgresql://"):
+        url = url.replace("postgresql://", "postgresql+asyncpg://", 1)
+    scheme, netloc, path, query, fragment = urlsplit(url)
+    if query:
+        params = []
+        for key, value in parse_qsl(query):
+            if key == "channel_binding":
+                continue
+            if key == "sslmode":
+                key, value = "ssl", ("require" if value != "disable" else "disable")
+            params.append((key, value))
+        url = urlunsplit((scheme, netloc, path, urlencode(params), fragment))
+    return url

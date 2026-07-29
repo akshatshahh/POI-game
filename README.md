@@ -130,6 +130,12 @@ npm run dev
 # Opens at http://localhost:5173
 ```
 
+### Deploying for free
+
+See [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) — Neon (Postgres) + Render
+(backend) + Vercel (frontend), $0/month. The repo ships `render.yaml` and
+`frontend/vercel.json` ready for it.
+
 ### Running with Docker
 
 ```bash
