@@ -36,18 +36,27 @@ automatically.
 
 ## 3. Frontend — Vercel (free)
 
+The API is proxied through the frontend's own domain (`/api/*` rewrites in
+`frontend/vercel.json` forward to the Render backend). This makes the
+session cookie first-party, which is required — Safari blocks cross-site
+cookies, so pointing the frontend directly at the onrender.com API breaks
+login there.
+
 1. Sign up at https://vercel.com with GitHub, import this repo.
 2. Set **Root Directory** to `frontend` (framework auto-detects Vite).
-3. Add env var `VITE_API_URL = https://poi-game-backend.onrender.com`
-   (build-time env beats the tracked `.env.production`, which still points at
-   the old Railway deploy).
-4. Deploy, note the URL, and put it into Render's `FRONTEND_URL` — exact
-   origin, no trailing slash (CORS is exact-match).
+3. Add env var `VITE_API_URL = /api`
+   (build-time env beats the tracked `.env.production`).
+4. Deploy and note the URL (`https://<your-app>.vercel.app`).
+5. Back in Render, set:
+   - `FRONTEND_URL = https://<your-app>.vercel.app` (exact, no trailing slash)
+   - `BACKEND_URL = https://<your-app>.vercel.app/api` — yes, the *frontend*
+     domain: this is the public URL the API is reached through, and it is
+     what the OAuth redirect and cookie flags are derived from.
 
 ## 4. Google OAuth redirect
 
 In Google Cloud Console → Credentials → your OAuth client, add:
-- Authorized redirect URI: `https://poi-game-backend.onrender.com/auth/google/callback`
+- Authorized redirect URI: `https://<your-app>.vercel.app/api/auth/google/callback`
 - Authorized JavaScript origin: `https://<your-app>.vercel.app`
 
 ## 5. Seed the production database (run locally)
