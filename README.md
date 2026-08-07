@@ -1,6 +1,11 @@
 # POI Game — USC IMSC
 
-A gamified web application for collecting human-labeled training data for **POI (Point of Interest) Attribution**. Players are shown GPS points on a map and asked to identify which nearby POI the person was most likely visiting.
+Internal project for **USC IMSC** — a gamified web app to collect human-labeled
+training data for **POI (Point of Interest) Attribution**. Players are shown
+GPS visits on a map and asked to identify which nearby POI the person was
+most likely visiting; their answers become consensus-labeled training data.
+
+Live: **https://poi-game.vercel.app**
 
 ## Architecture
 
@@ -20,20 +25,22 @@ A gamified web application for collecting human-labeled training data for **POI 
 |-------|------|----------|
 | Frontend | React 19 + Vite + TypeScript | `frontend/` |
 | Backend | FastAPI (Python 3.12) | `backend/` |
-| Database | PostgreSQL 16 + PostGIS 3 | via Docker or external |
+| Database | PostgreSQL 16 + PostGIS 3 | Neon (prod), local Postgres.app for dev |
 | POI Data | Overture Maps "Places" table | seeded via `backend/scripts/` (see Data Pipeline) |
 | Auth | Google OAuth 2.0 + local username/password | backend handles both flows |
 | Maps | Leaflet + CARTO/OSM tiles | frontend |
-| Deployment | Railway (prod); Docker Compose for local db/backend | `infra/` |
+| Deployment | Vercel (frontend) + Render (backend) + Neon (Postgres) | `render.yaml`, `frontend/vercel.json` |
 
-## Features (v1)
+## Features
 
 - **Auth** — Google OAuth (server-side) or local register/login; sessions in HttpOnly cookies
-- **Game Screen** — interactive Leaflet map showing GPS point and nearby candidate POIs
-- **Answer Submission** — player picks the most likely POI; answer is recorded
-- **Scoring** — base + distance bonus, plus a retroactive consensus bonus (see Scoring Algorithm)
-- **Leaderboard** — ranked display of top players with medals (login required)
-- **Admin Tools** — bulk GPS point import (JSON/CSV), label export (CSV/JSON)
+- **Game Screen** — full-page Leaflet map with numbered candidate pins and a bottom candidate list
+- **Answer Submission** — pick the most likely POI; answer is stored and scored server-side
+- **Consensus Labeling** — questions collect multiple independent answers and lock as either `consensus_reached` (with confidence) or `no_consensus` (ambiguous, documented)
+- **Scoring** — base participation + retroactive consensus bonus + difficulty bonus (see Consensus & Scoring)
+- **Leaderboard** — ranked view of players with at least one answer (login required)
+- **Admin Exports** — raw annotations *and* consensus dataset (CSV/JSON) for ML training
+- **Data Pipeline** — Overture Maps import + synthetic GPS visit generation from real POIs
 
 ## Project Structure
 
@@ -52,111 +59,54 @@ POI-game-cursor/
 │   │   └── services/      # Business logic (POI queries, questions, scoring)
 │   ├── alembic/           # Database migrations (users/gps_points/questions/answers)
 │   ├── scripts/           # Data pipeline: Overture seed + H3 backfill
-│   ├── tests/             # Pytest test suite
-│   ├── requirements.txt   # Runtime deps (requirements-dev.txt for tests)
-│   └── Dockerfile
+│   └── tests/             # Pytest test suite
 ├── frontend/              # React + Vite + TypeScript
-│   ├── src/
-│   │   ├── pages/         # Home, Play, Leaderboard, Login, Register
-│   │   ├── components/    # Navbar, GameMap, PlayMapHud, ClockPanel, ...
-│   │   ├── hooks/         # useAuth
-│   │   └── lib/           # API client, types, time helpers
-│   └── nginx.conf         # Production SPA routing
-├── infra/
-│   └── docker-compose.yml # Full-stack local orchestration
+│   └── src/
+│       ├── pages/         # Home, Play, Leaderboard, Login, Register
+│       ├── components/    # Navbar, GameMap, PlayMapHud, ClockPanel, ...
+│       ├── hooks/         # useAuth
+│       └── lib/           # API client, types, time helpers
+├── infra/                 # docker-compose for local db+backend
+├── render.yaml            # Backend blueprint (Render)
+├── frontend/vercel.json   # Frontend routing + /api proxy (Vercel)
 ├── docs/
+│   ├── DEPLOYMENT.md      # Live-stack setup notes
 │   ├── DEVLOG.md          # Development log with decisions
 │   └── TESTING.md         # Test guide and manual checklist
-├── .env.example
-├── .gitignore
-├── LICENSE
 └── README.md
 ```
 
-## Getting Started
+## Configuration
 
-### Prerequisites
+Backend settings live in `backend/app/config.py`; `.env.example` mirrors them.
+The knobs that actually shape gameplay/consensus:
 
-- Python 3.12+
-- Node.js 20+
-- PostgreSQL 16 with PostGIS 3 extension (or use Docker)
-- Google OAuth 2.0 credentials ([setup guide](https://console.cloud.google.com/apis/credentials))
-
-### Environment Variables
-
-Copy `.env.example` and fill in your values:
-
-```bash
-cp .env.example .env
-```
-
-| Variable | Description | Default |
-|----------|-------------|---------|
-| `ENVIRONMENT` | Set to `production` to enforce long `SECRET_KEY`, require Google OAuth, and disable `/docs` | `development` |
-| `DATABASE_URL` | Async Postgres connection string | `postgresql+asyncpg://postgres:postgres@localhost:5432/poi_game` |
-| `GOOGLE_CLIENT_ID` | Google OAuth client ID | (required) |
-| `GOOGLE_CLIENT_SECRET` | Google OAuth client secret | (required) |
-| `SECRET_KEY` | JWT signing key | `change-me-in-production` |
-| `FRONTEND_URL` | Frontend origin (CORS + redirects) | `http://localhost:5173` |
-| `BACKEND_URL` | Backend origin (OAuth callback) | `http://localhost:8000` |
-| `POI_SEARCH_RADIUS_METERS` | Spatial search radius | `150` |
-| `POI_MAX_CANDIDATES` | Max POI candidates shown per question | `12` |
-| `H3_RESOLUTION` | H3 hex grid resolution (7-12) | `9` |
-| `USE_H3_DEDUP` | Enable H3-based question de-duplication | `true` |
-| `CONSENSUS_BASE_TARGET` | Answers collected per question before a consensus decision | `3` |
+| Variable | Purpose | Default |
+|----------|---------|---------|
+| `ENVIRONMENT` | `production` enforces long `SECRET_KEY`, requires Google OAuth, disables `/docs` | `development` |
+| `DATABASE_URL` | Async Postgres (managed-Postgres URLs like Neon's `sslmode=require` are auto-translated) | local Postgres |
+| `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | Google OAuth client (see Cloud Console) | (required in prod) |
+| `SECRET_KEY` | JWT signing key (≥32 chars in prod) | dev placeholder |
+| `FRONTEND_URL` / `BACKEND_URL` | Exact origins for CORS + OAuth callback (trailing slashes stripped) | localhost |
+| `POI_SEARCH_RADIUS_METERS` | Nearby-POI radius | `150` |
+| `POI_MAX_CANDIDATES` | Max options shown per question | `12` |
+| `H3_RESOLUTION` | H3 hex resolution (7–12) | `9` |
+| `USE_H3_DEDUP` | Skip GPS points in H3 cells the user already answered | `true` |
+| `CONSENSUS_BASE_TARGET` | Answers per question before a consensus decision | `3` |
 | `CONSENSUS_MAX_TARGET` | Escalated target for ambiguous/dense questions | `5` |
-| `DENSE_CANDIDATE_THRESHOLD` | Nearby-POI count that marks a question as dense/hard | `12` |
-| `CONSENSUS_MIN_ACCOUNT_AGE_MINUTES` | Sybil gate: min account age for votes to count (0 = off) | `0` |
-| `RESTRICT_GPS_TO_LA` | Only serve GPS probes inside the Greater LA bbox ([`app/regions.py`](backend/app/regions.py)) | `true` |
+| `DENSE_CANDIDATE_THRESHOLD` | Candidate count that marks a question as dense/hard | `12` |
+| `CONSENSUS_MIN_ACCOUNT_AGE_MINUTES` | Sybil gate for vote counting (0 = off, `60` in prod) | `0` |
+| `RESTRICT_GPS_TO_LA` | Only serve GPS probes inside the LA bbox (`app/regions.py`) | `true` |
 
-### Running Locally
+## Data Pipeline
 
-**Backend:**
-```bash
-cd backend
-python -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
-alembic upgrade head  # run migrations
-python scripts/seed_production_data.py  # load POIs + GPS points (see Data Pipeline)
-uvicorn app.main:app --reload --port 8000
-```
-
-**Frontend:**
-```bash
-cd frontend
-npm install
-npm run dev
-# Opens at http://localhost:5173
-```
-
-### Deploying for free
-
-See [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) — Neon (Postgres) + Render
-(backend) + Vercel (frontend), $0/month. The repo ships `render.yaml` and
-`frontend/vercel.json` ready for it.
-
-### Running with Docker
-
-```bash
-cd infra
-cp ../.env.example .env  # edit with your values
-docker compose up --build
-
-# Frontend: http://localhost:3000
-# Backend:  http://localhost:8000
-# Database: localhost:5432
-```
-
-### Data Pipeline (required before the game works)
-
-Alembic only creates the app tables (`users`, `gps_points`, `questions`,
-`answers`). The `places` table — the POI catalog the whole game runs on —
-lives **outside** the migrations and is created/populated by the seed script:
+Alembic manages the app tables (`users`, `gps_points`, `questions`, `answers`).
+The `places` table — the POI catalog the whole game runs on — lives **outside
+Alembic** and is populated by the seed script:
 
 ```bash
 cd backend && source .venv/bin/activate
-python scripts/seed_production_data.py            # canonical pipeline
+python scripts/seed_production_data.py
 python scripts/seed_production_data.py --gps-count 50
 ```
 
@@ -169,28 +119,6 @@ Other scripts:
 - `scripts/load_overture_places.py` — reload POIs only (no GPS points)
 - `scripts/backfill_h3.py` — fill `h3_cell` on GPS rows that predate H3
 
-Without seeding, `/game/next-question` and `/pois/nearby` fail on the
-missing `places` table.
-
-### Creating an Admin User
-
-There is no admin UI or endpoint; promote a user directly in SQL:
-
-```sql
-UPDATE users SET is_admin = true WHERE email = 'you@example.com';
-```
-
-### Running Tests
-
-```bash
-cd backend
-source .venv/bin/activate
-pip install -r requirements-dev.txt  # pytest, pytest-asyncio, aiosqlite
-python -m pytest tests/ -v
-```
-
-See `docs/TESTING.md` for the full manual test checklist.
-
 ## API Endpoints
 
 | Method | Path | Auth | Description |
@@ -201,9 +129,9 @@ See `docs/TESTING.md` for the full manual test checklist.
 | GET | `/auth/google/login` | No | Start Google OAuth flow |
 | GET | `/auth/google/callback` | No | OAuth callback (internal) |
 | GET | `/auth/me` | Yes | Current user profile |
-| POST | `/auth/logout` | No | Clear HttpOnly session cookie (JSON `{"ok":true}`) |
+| POST | `/auth/logout` | No | Clear HttpOnly session cookie |
 | GET | `/pois/nearby` | Admin | Query nearby POIs by lat/lon (includes distances) |
-| GET | `/game/next-question` | Yes | Get next question for user |
+| GET | `/game/next-question` | Yes | Get next question for user (includes `prior_answers`) |
 | POST | `/game/answer` | Yes | Submit POI selection |
 | GET | `/leaderboard` | Yes | Ranked player list (players with ≥1 answer) |
 | POST | `/admin/gps-points/bulk` | Admin | Import GPS points (JSON) |
@@ -212,15 +140,17 @@ See `docs/TESTING.md` for the full manual test checklist.
 | GET | `/admin/export/consensus` | Admin | Consensus dataset, one row per question with label + confidence + vote distribution (CSV/JSON) |
 | GET | `/admin/poi-quality` | Admin | POI candidate density report |
 
-## Security notes
+## Security Notes
 
-- **Sessions**: After login (password, register, or Google), the JWT is stored in an **HttpOnly** cookie (`access_token`). The response body returns only `{ "user": ... }` — no token in JSON or URL query strings.
-- **Google OAuth**: Uses a random `state` parameter and a short-lived HttpOnly cookie to mitigate login CSRF. Use **HTTPS** in production so `SameSite=None; Secure` cookies work for cross-origin SPA + API hosts.
-- **CORS**: `FRONTEND_URL` must exactly match the browser origin (scheme + host + port).
-- **Production**: Set `ENVIRONMENT=production`, `SECRET_KEY` (32+ random bytes), and real Google credentials. Never commit `.env` or OAuth client JSON (see `.gitignore`).
-- **Still recommended**: rate limiting (e.g. reverse proxy), WAF, `pip audit` / `npm audit`, structured security logging, and rotating secrets after any leak.
+- **Sessions**: after login (password, register, or Google) the JWT lives in an **HttpOnly** cookie (`access_token`). Response bodies never contain a token.
+- **Google OAuth**: uses a random `state` + short-lived HttpOnly cookie to mitigate login CSRF. Google callback refuses to auto-link a Google identity onto an existing password account (avoids takeover) and requires `verified_email`.
+- **Distances**: candidate POIs sent to players deliberately omit `distance_meters`; only the server sees the true distance (used as an ML covariate, never scored).
+- **Consensus lock**: questions become immutable after they reach `consensus_reached` or `no_consensus`, so exports are reproducible.
+- **CORS**: `FRONTEND_URL` must exactly match the browser origin (scheme + host + port). Trailing slashes are stripped so the exact-match check can't be broken by accident.
+- **Rate limiting**: register/login are IP rate-limited (`app/rate_limit.py`).
+- **Cookies in prod**: `SameSite=None; Secure` — requires HTTPS on both frontend and backend, which the Vercel + Render setup provides.
 
-## Consensus & Scoring (v3)
+## Consensus & Scoring
 
 Implemented in `backend/app/services/scoring_service.py`. The design goal is
 label quality: every question is an annotation task that ends in a locked,
@@ -228,17 +158,10 @@ exportable consensus label with a confidence score.
 
 **Consensus lifecycle (per question):**
 
-1. A question collects at least **3 independent answers** (one per user,
-   enforced by a DB unique constraint).
-2. The leading POI wins when it has **≥60% of votes AND a lead of ≥2** over
-   the runner-up (so a 2–2 tie can never pass — ties resolve by collecting
-   more votes).
-3. If annotators disagree at the base target — or the area is dense
-   (`candidate_density ≥ DENSE_CANDIDATE_THRESHOLD`) — the target escalates
-   to **5 answers** before the decision is final.
-4. The question then **locks** as `consensus_reached` (label + confidence
-   stored) or `no_consensus` (a documented ambiguous point). Locked labels
-   are immutable, so exports are reproducible.
+1. A question collects at least **3 independent answers** (one per user, enforced by a DB unique constraint).
+2. The leading POI wins when it has **≥60% of votes AND a lead of ≥2** over the runner-up (so a 2–2 tie can never pass — ties resolve by collecting more votes).
+3. If annotators disagree at the base target — or the area is dense (`candidate_density ≥ DENSE_CANDIDATE_THRESHOLD`) — the target escalates to **5 answers** before the decision is final.
+4. The question then **locks** as `consensus_reached` (label + confidence stored) or `no_consensus` (a documented ambiguous point). Locked labels are immutable.
 
 The candidate set shown to annotators is frozen on the question at creation
 (`questions.candidates`), answers are validated against it, and it is
@@ -247,23 +170,14 @@ recoverable at export time.
 **Scoring:**
 
 - **5 points** per answer, immediately (participation)
-- **+10 consensus bonus**, paid **once, when the question locks**, to
-  everyone who picked the winning POI
+- **+10 consensus bonus**, paid **once, when the question locks**, to everyone who picked the winning POI
 - **+5 difficulty bonus** on top, if the question needed the escalated target
-- No distance bonus: proximity is recorded as an ML covariate
-  (`answers.selected_distance_meters`) but never scored, so picking the
-  nearest pin earns nothing by itself. Scores never go down.
+- No distance bonus: proximity is recorded as an ML covariate (`answers.selected_distance_meters`) but never scored. Scores never go down.
 
-**Abuse protection:** registration and login are rate-limited per IP
-(`app/rate_limit.py`), and `CONSENSUS_MIN_ACCOUNT_AGE_MINUTES` can exclude
-brand-new accounts from vote counting (they still earn participation points).
-
-## Development Workflow
-
-- All work happens on feature branches
-- PRs are opened per task with descriptions, checklists, and test notes
-- Progress is tracked in `docs/DEVLOG.md`
+**Abuse protection:** `CONSENSUS_MIN_ACCOUNT_AGE_MINUTES` can exclude
+brand-new accounts from vote counting (they still earn participation
+points). Set to `60` in the live Render config.
 
 ## License
 
-MIT — see [LICENSE](LICENSE) for details.
+MIT — see [LICENSE](LICENSE).
