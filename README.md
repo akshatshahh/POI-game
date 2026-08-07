@@ -45,7 +45,7 @@ Live: **https://poi-game.vercel.app**
 ## Project Structure
 
 ```
-POI-game-cursor/
+POI-game/
 ├── backend/               # FastAPI application
 │   ├── app/
 │   │   ├── main.py        # App entry point, routes, middleware
