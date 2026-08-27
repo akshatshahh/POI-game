@@ -90,7 +90,7 @@ export function ClockPanel({ gpsPoint }: ClockPanelProps) {
   if (!parsed && !gpsPoint.local_time && !gpsPoint.weekday) return null;
 
   return (
-    <div className="clock-panel" aria-label="POI visit day/time">
+    <div className="clock-panel" aria-label="POI visit day/time" data-tutorial="visit-time">
       <div className="clock-panel-label">POI visit day/time</div>
       {parsed && (
         <div className="clock-panel-face">
