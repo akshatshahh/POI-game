@@ -6,10 +6,17 @@ import type { TimeOfDay } from "../lib/timeOfDay";
 import { formatCategory } from "../lib/formatCategory";
 import "leaflet/dist/leaflet.css";
 
+const CARTO_API_KEY = import.meta.env.VITE_CARTO_API_KEY?.trim();
+
+function cartoTileUrl(style: string): string {
+  const url = `https://{s}.basemaps.cartocdn.com/${style}/{z}/{x}/{y}{r}.png`;
+  return CARTO_API_KEY ? `${url}?key=${encodeURIComponent(CARTO_API_KEY)}` : url;
+}
+
 const TILE_URLS: Record<TimeOfDay, string> = {
-  day: "https://{s}.basemaps.cartocdn.com/rastertiles/voyager_labels_under/{z}/{x}/{y}{r}.png",
-  evening: "https://{s}.basemaps.cartocdn.com/rastertiles/voyager_labels_under/{z}/{x}/{y}{r}.png",
-  night: "https://{s}.basemaps.cartocdn.com/rastertiles/dark_all/{z}/{x}/{y}{r}.png",
+  day: cartoTileUrl("rastertiles/voyager_labels_under"),
+  evening: cartoTileUrl("rastertiles/voyager_labels_under"),
+  night: cartoTileUrl("rastertiles/dark_all"),
 };
 
 const GPS_ICON = new L.Icon({
