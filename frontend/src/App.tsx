@@ -41,7 +41,11 @@ function AppShell({ user, loading, logout, refetchUser }: ReturnType<typeof useA
             path="/play"
             element={
               <RequireAuth user={user}>
-                <Play onScoreUpdate={refetchUser} />
+                <Play
+                  userId={user?.id ?? ""}
+                  isFirstTimePlayer={user?.answers_count === 0}
+                  onScoreUpdate={refetchUser}
+                />
               </RequireAuth>
             }
           />

@@ -29,9 +29,16 @@ the candidate set frozen on the question — no `places` table needed.
 ### Frontend
 ```bash
 cd frontend
-npx tsc --noEmit  # TypeScript type checking
-npm run build     # Build verification
+npm ci
+npx playwright install chromium
+npm run lint      # ESLint
+npm run build     # TypeScript + production build
+npm run test:e2e  # Desktop and mobile browser checks
 ```
+
+The Playwright suite verifies that the first-time tutorial highlights each
+game control, stays inside desktop and mobile viewports, and remains dismissed
+after completion.
 
 ## Manual Test Checklist
 

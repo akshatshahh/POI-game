@@ -62,21 +62,18 @@ export function PlayMapHud({
   }, []);
 
   useEffect(() => {
-    updateScrollbar();
-  }, [candidates, answered, updateScrollbar]);
-
-  useEffect(() => {
     const el = listRef.current;
     if (!el) return;
-    updateScrollbar();
+    const frame = window.requestAnimationFrame(updateScrollbar);
     el.addEventListener("scroll", updateScrollbar, { passive: true });
     const ro = new ResizeObserver(updateScrollbar);
     ro.observe(el);
     return () => {
+      window.cancelAnimationFrame(frame);
       el.removeEventListener("scroll", updateScrollbar);
       ro.disconnect();
     };
-  }, [answered, candidates.length, updateScrollbar]);
+  }, [answered, candidates, updateScrollbar]);
 
   useEffect(() => {
     if (!selectedPoiId || answered) return;
@@ -126,7 +123,7 @@ export function PlayMapHud({
 
       <div className="play-hud-bottom">
         {!answered && candidates.length > 0 && (
-          <div className="hud-candidate-scroll">
+          <div className="hud-candidate-scroll" data-tutorial="poi-choices">
             <ul ref={listRef} className="hud-candidate-list" aria-label="Candidate places">
               {candidates.map((poi, index) => {
                 const num = index + 1;
@@ -178,6 +175,7 @@ export function PlayMapHud({
               onClick={onSubmit}
               disabled={!selectedPoiId || submitting}
               className="btn btn-primary btn-lg hud-submit"
+              data-tutorial="submit-answer"
             >
               {submitting ? "Submitting…" : "Submit Answer"}
             </button>

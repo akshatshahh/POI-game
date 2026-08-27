@@ -3,16 +3,19 @@ import { useNavigate } from "react-router-dom";
 import { GameMap } from "../components/GameMap";
 import { PlayMapHud } from "../components/PlayMapHud";
 import { ClockPanel } from "../components/ClockPanel";
+import { FirstTimeTutorial } from "../components/FirstTimeTutorial";
 import { LoadingScreen } from "../components/LoadingScreen";
 import { api, isApiError } from "../lib/api";
 import { timeOfDay } from "../lib/timeOfDay";
 import type { AnswerResponse, Question } from "../lib/types";
 
 interface PlayProps {
+  userId: string;
+  isFirstTimePlayer: boolean;
   onScoreUpdate: () => void;
 }
 
-export function Play({ onScoreUpdate }: PlayProps) {
+export function Play({ userId, isFirstTimePlayer, onScoreUpdate }: PlayProps) {
   const navigate = useNavigate();
   const [question, setQuestion] = useState<Question | null>(null);
   const [selectedPoiId, setSelectedPoiId] = useState<string | null>(null);
@@ -126,6 +129,7 @@ export function Play({ onScoreUpdate }: PlayProps) {
         onRecenter={() => recenterRef.current?.()}
       />
       <ClockPanel gpsPoint={question.gps_point} />
+      {isFirstTimePlayer && userId && <FirstTimeTutorial userId={userId} />}
     </div>
   );
 }
