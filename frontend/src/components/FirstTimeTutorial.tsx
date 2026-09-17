@@ -41,35 +41,30 @@ const SPOTLIGHT_PADDING = 8;
 
 const STEPS: TutorialStep[] = [
   {
-    title: "Welcome to POI Game",
+    title: "Visit time",
     body:
-      "Each round shows a recorded GPS visit and nearby places. Your job is to choose the point of interest (POI) the person most likely visited.",
-  },
-  {
-    title: "Use the visit time",
-    body:
-      "This is when the visit happened. Use the day and time to think about which nearby places were open and likely to be visited then.",
+      "The day and time help you rule out places that were probably closed.",
     targetSelectors: ['[data-tutorial="visit-time"]'],
     preferredPlacement: "left",
   },
   {
-    title: "Start at the red pin",
+    title: "GPS location",
     body:
-      "The red pin is the recorded GPS location. GPS can be slightly off, so treat it as a clue and compare all of the nearby places.",
+      "The red pin marks the recorded location. GPS can be off, so check nearby places.",
     targetSelectors: [".gps-location-marker", ".gps-tooltip"],
     preferredPlacement: "right",
   },
   {
-    title: "Choose the most likely place",
+    title: "Select POIs",
     body:
-      "Each blue number on the map matches a place in this list. Tap a marker or a list item, then pick the place that best fits both the location and time.",
+      "Blue map numbers match this list. Select every place that fits the time and location.",
     targetSelectors: ['[data-tutorial="poi-choices"]'],
     preferredPlacement: "above",
   },
   {
-    title: "How the final POI is decided",
+    title: "Final matches",
     body:
-      "After you submit, your answer joins other players' votes. When enough players clearly agree, the leading place becomes the final POI. You earn 5 points for answering and at least 10 more if the final choice matches yours. Split votes may end with no final POI.",
+      "Submit your selections. Places with enough player agreement become final matches; split choices stay undecided.",
     targetSelectors: ['[data-tutorial="submit-answer"]'],
     preferredPlacement: "above",
   },
