@@ -17,7 +17,7 @@ class Settings(BaseSettings):
     poi_search_radius_meters: int = 150
     # Max candidates shown per question. Kept small: long option lists in
     # dense areas dilute agreement and overload annotators.
-    poi_max_candidates: int = 12
+    poi_max_candidates: int = 8
     h3_resolution: int = 9
     use_h3_dedup: bool = True
 
@@ -27,7 +27,7 @@ class Settings(BaseSettings):
     # to consensus_max_target before the label is finalized.
     consensus_base_target: int = 3
     consensus_max_target: int = 5
-    dense_candidate_threshold: int = 12
+    dense_candidate_threshold: int = 7
     # Sybil gate: answers from accounts younger than this don't count toward
     # consensus (they still earn participation points). 0 disables the gate;
     # set to e.g. 60 in production.
