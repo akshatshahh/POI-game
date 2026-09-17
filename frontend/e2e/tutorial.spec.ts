@@ -55,7 +55,7 @@ async function mockApi(page: Page): Promise<void> {
     const pathname = new URL(route.request().url()).pathname;
     const headers = {
       "access-control-allow-credentials": "true",
-      "access-control-allow-origin": "http://localhost:4173",
+      "access-control-allow-origin": "http://localhost:4317",
       "content-type": "application/json",
     };
 
@@ -132,26 +132,23 @@ test("first-time tutorial explains and highlights the full game flow", async ({ 
 
   const card = page.locator(".tutorial-card");
   await expect(card).toBeVisible();
-  await expect(page.getByRole("heading", { name: "Welcome to POI Game" })).toBeVisible();
-  await expect(page.locator(".tutorial-progress-segment")).toHaveCount(5);
+  await expect(page.getByRole("heading", { name: "Visit time" })).toBeVisible();
+  await expect(page.locator(".tutorial-progress-segment")).toHaveCount(4);
   await expectInsideViewport(page, card);
-
-  await page.getByRole("button", { name: "Next" }).click();
-  await expect(page.getByRole("heading", { name: "Use the visit time" })).toBeVisible();
   await expectHighlighted(page, '[data-tutorial="visit-time"]');
 
   await page.getByRole("button", { name: "Next" }).click();
-  await expect(page.getByRole("heading", { name: "Start at the red pin" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "GPS location" })).toBeVisible();
   await expectHighlighted(page, ".gps-location-marker");
 
   await page.getByRole("button", { name: "Next" }).click();
-  await expect(page.getByRole("heading", { name: "Choose the most likely place" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Select POIs" })).toBeVisible();
+  await expect(page.locator("#tutorial-description")).toContainText("Select every place");
   await expectHighlighted(page, '[data-tutorial="poi-choices"]');
 
   await page.getByRole("button", { name: "Next" }).click();
-  await expect(
-    page.getByRole("heading", { name: "How the final POI is decided" }),
-  ).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Final matches" })).toBeVisible();
+  await expect(page.locator("#tutorial-description")).toContainText("Submit your selections");
   await expectHighlighted(page, '[data-tutorial="submit-answer"]');
 
   await page.getByRole("button", { name: "Start playing" }).click();

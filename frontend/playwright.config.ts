@@ -5,13 +5,13 @@ export default defineConfig({
   fullyParallel: false,
   reporter: "line",
   use: {
-    baseURL: "http://localhost:4173",
+    baseURL: "http://localhost:4317",
     trace: "retain-on-failure",
   },
   webServer: {
-    command: "npm run dev -- --host localhost --port 4173",
-    url: "http://localhost:4173",
-    reuseExistingServer: true,
+    command: "npm run dev -- --host localhost --port 4317 --strictPort",
+    url: "http://localhost:4317",
+    reuseExistingServer: false,
     timeout: 120_000,
   },
   projects: [
