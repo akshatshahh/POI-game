@@ -18,7 +18,7 @@ interface PlayProps {
 export function Play({ userId, isFirstTimePlayer, onScoreUpdate }: PlayProps) {
   const navigate = useNavigate();
   const [question, setQuestion] = useState<Question | null>(null);
-  const [selectedPoiId, setSelectedPoiId] = useState<string | null>(null);
+  const [selectedPoiIds, setSelectedPoiIds] = useState<Set<string>>(new Set());
   const [submitting, setSubmitting] = useState(false);
   const [feedback, setFeedback] = useState<AnswerResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -26,9 +26,21 @@ export function Play({ userId, isFirstTimePlayer, onScoreUpdate }: PlayProps) {
   const recenterRef = useRef<() => void>(() => {});
   const handleMapReady = useCallback((fn: () => void) => { recenterRef.current = fn; }, []);
 
+  const togglePoi = useCallback((poiId: string) => {
+    setSelectedPoiIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(poiId)) {
+        next.delete(poiId);
+      } else {
+        next.add(poiId);
+      }
+      return next;
+    });
+  }, []);
+
   const fetchQuestion = useCallback(async () => {
     setLoading(true);
-    setSelectedPoiId(null);
+    setSelectedPoiIds(new Set());
     setFeedback(null);
     setError(null);
     try {
@@ -51,12 +63,12 @@ export function Play({ userId, isFirstTimePlayer, onScoreUpdate }: PlayProps) {
   }, [fetchQuestion]);
 
   const handleSubmit = async () => {
-    if (!question || !selectedPoiId) return;
+    if (!question || selectedPoiIds.size === 0) return;
     setSubmitting(true);
     try {
       const result = await api.post<AnswerResponse>("/game/answer", {
         question_id: question.question_id,
-        selected_poi_id: selectedPoiId,
+        selected_poi_ids: Array.from(selectedPoiIds),
       });
       setFeedback(result);
       onScoreUpdate();
@@ -66,9 +78,6 @@ export function Play({ userId, isFirstTimePlayer, onScoreUpdate }: PlayProps) {
         return;
       }
       if (isApiError(err, 409)) {
-        // Question was finalized (or answered in another tab) while this one
-        // was open — it can't accept the answer, so move on instead of
-        // leaving the player stuck on a dead question.
         await fetchQuestion();
         return;
       }
@@ -109,21 +118,21 @@ export function Play({ userId, isFirstTimePlayer, onScoreUpdate }: PlayProps) {
       <GameMap
         gpsPoint={question.gps_point}
         candidates={question.candidates}
-        selectedPoiId={selectedPoiId}
-        onSelectPoi={setSelectedPoiId}
+        selectedPoiIds={selectedPoiIds}
+        onSelectPoi={togglePoi}
         onMapReady={handleMapReady}
         timeOfDay={tod}
       />
       <PlayMapHud
         gpsPoint={question.gps_point}
         candidates={question.candidates}
-        selectedPoiId={selectedPoiId}
+        selectedPoiIds={selectedPoiIds}
         priorAnswers={question.prior_answers ?? 0}
         answered={!!feedback}
         feedback={feedback}
         submitting={submitting}
         error={error}
-        onSelectPoi={setSelectedPoiId}
+        onSelectPoi={togglePoi}
         onSubmit={handleSubmit}
         onNextQuestion={fetchQuestion}
         onRecenter={() => recenterRef.current?.()}

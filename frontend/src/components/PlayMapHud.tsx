@@ -5,7 +5,7 @@ import { formatCategory } from "../lib/formatCategory";
 interface PlayMapHudProps {
   gpsPoint: GpsPoint;
   candidates: Poi[];
-  selectedPoiId: string | null;
+  selectedPoiIds: Set<string>;
   priorAnswers?: number;
   answered: boolean;
   feedback: AnswerResponse | null;
@@ -20,7 +20,7 @@ interface PlayMapHudProps {
 export function PlayMapHud({
   gpsPoint,
   candidates,
-  selectedPoiId,
+  selectedPoiIds,
   priorAnswers = 0,
   answered,
   feedback,
@@ -38,10 +38,8 @@ export function PlayMapHud({
     thumbHeight: 0,
   });
   const hasTime = !!(gpsPoint.weekday || gpsPoint.local_time);
-  const selectedPoi = candidates.find((c) => c.id === selectedPoiId) ?? null;
-  const selectedNum = selectedPoiId
-    ? candidates.findIndex((c) => c.id === selectedPoiId) + 1
-    : 0;
+  const selectedPois = candidates.filter((c) => selectedPoiIds.has(c.id));
+  const selectionCount = selectedPoiIds.size;
 
   const updateScrollbar = useCallback(() => {
     const el = listRef.current;
@@ -76,12 +74,14 @@ export function PlayMapHud({
   }, [answered, candidates, updateScrollbar]);
 
   useEffect(() => {
-    if (!selectedPoiId || answered) return;
+    if (selectedPoiIds.size === 0 || answered) return;
+    const lastId = Array.from(selectedPoiIds).pop();
+    if (!lastId) return;
     const row = listRef.current?.querySelector<HTMLElement>(
-      `[data-poi-id="${CSS.escape(selectedPoiId)}"]`,
+      `[data-poi-id="${CSS.escape(lastId)}"]`,
     );
     row?.scrollIntoView({ block: "nearest", behavior: "smooth" });
-  }, [selectedPoiId, answered]);
+  }, [selectedPoiIds, answered]);
 
   return (
     <div className="play-hud">
@@ -97,7 +97,7 @@ export function PlayMapHud({
                 </span>
               </span>
             )}
-            <span className="hud-prompt">Which POI was this person most likely visiting?</span>
+            <span className="hud-prompt">Which POI(s) was this person most likely visiting?</span>
             <span className="hud-recenter" title="Recenter map">
               <span className="hud-recenter-icon" aria-hidden="true">⊕</span>
               <span className="hud-recenter-text">Recenter map</span>
@@ -127,7 +127,7 @@ export function PlayMapHud({
             <ul ref={listRef} className="hud-candidate-list" aria-label="Candidate places">
               {candidates.map((poi, index) => {
                 const num = index + 1;
-                const isSelected = poi.id === selectedPoiId;
+                const isSelected = selectedPoiIds.has(poi.id);
                 return (
                   <li key={poi.id} data-poi-id={poi.id}>
                     <button
@@ -141,6 +141,7 @@ export function PlayMapHud({
                         <span className="hud-candidate-name">{poi.name}</span>
                         <span className="hud-candidate-cat">{formatCategory(poi.category)}</span>
                       </span>
+                      <span className="hud-candidate-check" aria-hidden="true">{isSelected ? "✓" : ""}</span>
                     </button>
                   </li>
                 );
@@ -162,22 +163,30 @@ export function PlayMapHud({
 
         {!answered ? (
           <>
-            {selectedPoi && (
+            {selectedPois.length > 0 && (
               <div className="hud-selection">
-                <span className="hud-selection-label">Selected:</span>
-                <span className="hud-selection-num" aria-hidden="true">{selectedNum}</span>
-                <span className="hud-selection-name">{selectedPoi.name}</span>
-                <span className="hud-selection-cat">{formatCategory(selectedPoi.category)}</span>
+                <span className="hud-selection-label">
+                  Selected ({selectionCount}):
+                </span>
+                {selectedPois.map((poi) => {
+                  const num = candidates.findIndex((c) => c.id === poi.id) + 1;
+                  return (
+                    <span key={poi.id} className="hud-selection-item">
+                      <span className="hud-selection-num" aria-hidden="true">{num}</span>
+                      <span className="hud-selection-name">{poi.name}</span>
+                    </span>
+                  );
+                })}
               </div>
             )}
             {error && <p className="hud-error">{error}</p>}
             <button
               onClick={onSubmit}
-              disabled={!selectedPoiId || submitting}
+              disabled={selectionCount === 0 || submitting}
               className="btn btn-primary btn-lg hud-submit"
               data-tutorial="submit-answer"
             >
-              {submitting ? "Submitting…" : "Submit Answer"}
+              {submitting ? "Submitting…" : `Submit Answer${selectionCount > 1 ? "s" : ""}`}
             </button>
           </>
         ) : (
@@ -189,9 +198,13 @@ export function PlayMapHud({
                   +10 bonus if other players confirm your pick when this
                   question finalizes!
                 </p>
-                {selectedPoi && (
+                {feedback.selected_poi_ids && feedback.selected_poi_ids.length > 0 && (
                   <p className="hud-feedback-poi">
-                    You picked: <strong>{selectedPoi.name}</strong>
+                    You picked: <strong>
+                      {feedback.selected_poi_ids
+                        .map((id) => candidates.find((c) => c.id === id)?.name ?? id)
+                        .join(", ")}
+                    </strong>
                   </p>
                 )}
               </div>

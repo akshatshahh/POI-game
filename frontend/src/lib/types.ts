@@ -41,6 +41,7 @@ export interface AnswerResponse {
   id: string;
   question_id: string;
   selected_poi_id: string;
+  selected_poi_ids: string[];
   score_awarded: number;
   created_at: string;
 }

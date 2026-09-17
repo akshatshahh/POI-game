@@ -50,7 +50,7 @@ async def test_next_question_no_gps_points(client: AsyncClient, test_user: User)
 async def test_submit_answer_unauthenticated(client: AsyncClient) -> None:
     response = await client.post("/game/answer", json={
         "question_id": "00000000-0000-0000-0000-000000000000",
-        "selected_poi_id": "test-poi",
+        "selected_poi_ids": ["test-poi"],
     })
     assert response.status_code == 401
 
@@ -61,7 +61,7 @@ async def test_submit_answer_invalid_question(client: AsyncClient, test_user: Us
         "/game/answer",
         json={
             "question_id": "00000000-0000-0000-0000-000000000000",
-            "selected_poi_id": "test-poi",
+            "selected_poi_ids": ["test-poi"],
         },
         headers=auth_headers(test_user),
     )
@@ -76,17 +76,65 @@ async def test_submit_answer_happy_path(
 
     response = await client.post(
         "/game/answer",
-        json={"question_id": str(question.id), "selected_poi_id": "poi-a"},
+        json={"question_id": str(question.id), "selected_poi_ids": ["poi-a"]},
         headers=auth_headers(test_user),
     )
     assert response.status_code == 200
     data = response.json()
     assert data["score_awarded"] == 5  # participation only; bonus waits for consensus
     assert data["selected_poi_id"] == "poi-a"
+    assert data["selected_poi_ids"] == ["poi-a"]
 
     await db_session.refresh(test_user)
     assert test_user.score == 5
     assert test_user.answers_count == 1
+
+
+@pytest.mark.asyncio
+async def test_submit_answer_multi_select(
+    client: AsyncClient, test_user: User, db_session: AsyncSession
+) -> None:
+    question = await _make_question(db_session)
+
+    response = await client.post(
+        "/game/answer",
+        json={"question_id": str(question.id), "selected_poi_ids": ["poi-b", "poi-a", "poi-c"]},
+        headers=auth_headers(test_user),
+    )
+    assert response.status_code == 200
+    data = response.json()
+    assert data["selected_poi_id"] == "poi-b"  # primary = first in list
+    assert data["selected_poi_ids"] == ["poi-b", "poi-a", "poi-c"]
+    assert data["score_awarded"] == 5
+
+
+@pytest.mark.asyncio
+async def test_submit_answer_deduplicates_poi_ids(
+    client: AsyncClient, test_user: User, db_session: AsyncSession
+) -> None:
+    question = await _make_question(db_session)
+
+    response = await client.post(
+        "/game/answer",
+        json={"question_id": str(question.id), "selected_poi_ids": ["poi-a", "poi-a", "poi-b"]},
+        headers=auth_headers(test_user),
+    )
+    assert response.status_code == 200
+    data = response.json()
+    assert data["selected_poi_ids"] == ["poi-a", "poi-b"]
+
+
+@pytest.mark.asyncio
+async def test_submit_answer_empty_list_returns_422(
+    client: AsyncClient, test_user: User, db_session: AsyncSession
+) -> None:
+    question = await _make_question(db_session)
+    response = await client.post(
+        "/game/answer",
+        json={"question_id": str(question.id), "selected_poi_ids": []},
+        headers=auth_headers(test_user),
+    )
+    assert response.status_code == 422
 
 
 @pytest.mark.asyncio
@@ -96,7 +144,20 @@ async def test_submit_answer_rejects_poi_outside_frozen_candidates(
     question = await _make_question(db_session)
     response = await client.post(
         "/game/answer",
-        json={"question_id": str(question.id), "selected_poi_id": "poi-nowhere"},
+        json={"question_id": str(question.id), "selected_poi_ids": ["poi-nowhere"]},
+        headers=auth_headers(test_user),
+    )
+    assert response.status_code == 400
+
+
+@pytest.mark.asyncio
+async def test_submit_answer_rejects_if_any_poi_invalid(
+    client: AsyncClient, test_user: User, db_session: AsyncSession
+) -> None:
+    question = await _make_question(db_session)
+    response = await client.post(
+        "/game/answer",
+        json={"question_id": str(question.id), "selected_poi_ids": ["poi-a", "poi-nowhere"]},
         headers=auth_headers(test_user),
     )
     assert response.status_code == 400
@@ -107,7 +168,7 @@ async def test_submit_answer_duplicate_returns_409(
     client: AsyncClient, test_user: User, db_session: AsyncSession
 ) -> None:
     question = await _make_question(db_session)
-    payload = {"question_id": str(question.id), "selected_poi_id": "poi-a"}
+    payload = {"question_id": str(question.id), "selected_poi_ids": ["poi-a"]}
     first = await client.post("/game/answer", json=payload, headers=auth_headers(test_user))
     assert first.status_code == 200
     second = await client.post("/game/answer", json=payload, headers=auth_headers(test_user))
@@ -126,7 +187,7 @@ async def test_submit_answer_on_locked_question_returns_409(
 
     response = await client.post(
         "/game/answer",
-        json={"question_id": str(question.id), "selected_poi_id": "poi-a"},
+        json={"question_id": str(question.id), "selected_poi_ids": ["poi-a"]},
         headers=auth_headers(test_user),
     )
     assert response.status_code == 409

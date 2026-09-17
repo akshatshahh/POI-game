@@ -117,6 +117,10 @@ class Answer(Base):
         UUID(as_uuid=True), ForeignKey("users.id"), nullable=False, index=True
     )
     selected_poi_id: Mapped[str] = mapped_column(String(255), nullable=False)
+    # All POIs the user considers likely; selected_poi_id is the first (primary).
+    selected_poi_ids: Mapped[list | None] = mapped_column(
+        JSON().with_variant(JSONB, "postgresql"), nullable=True
+    )
     # Distance from the GPS point to the selected POI, kept as an ML covariate
     # (it no longer affects scoring).
     selected_distance_meters: Mapped[float | None] = mapped_column(Float, nullable=True)

@@ -69,18 +69,21 @@ async def submit_answer(
     # at creation, so the accepted choice set is stable and reproducible.
     await ensure_question_candidates(db, question, gps_point)
     candidate_map = {c["id"]: c for c in question.candidates or []}
-    if body.selected_poi_id not in candidate_map:
-        raise HTTPException(
-            status_code=400,
-            detail="Selected POI is not a valid candidate for this question",
-        )
+    for poi_id in body.selected_poi_ids:
+        if poi_id not in candidate_map:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Selected POI '{poi_id}' is not a valid candidate for this question",
+            )
 
-    selected_distance = candidate_map[body.selected_poi_id].get("distance_meters")
+    primary_poi_id = body.selected_poi_ids[0]
+    selected_distance = candidate_map[primary_poi_id].get("distance_meters")
 
     answer = Answer(
         question_id=body.question_id,
         user_id=user.id,
-        selected_poi_id=body.selected_poi_id,
+        selected_poi_id=primary_poi_id,
+        selected_poi_ids=body.selected_poi_ids,
     )
     db.add(answer)
     try:

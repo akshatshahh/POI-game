@@ -1,4 +1,4 @@
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import { MapContainer, TileLayer, Marker, Tooltip, useMap } from "react-leaflet";
 import L from "leaflet";
 import type { Poi, GpsPoint } from "../lib/types";
@@ -98,7 +98,7 @@ function numberedPoiIcon(
 interface GameMapProps {
   gpsPoint: GpsPoint;
   candidates: Poi[];
-  selectedPoiId: string | null;
+  selectedPoiIds: Set<string>;
   onSelectPoi: (poiId: string) => void;
   onMapReady?: (recenter: () => void) => void;
   timeOfDay?: TimeOfDay;
@@ -136,44 +136,55 @@ function MapUpdater({ lat, lon, candidates, onMapReady }: {
 }
 
 function SelectionFocuser({
-  selectedPoiId,
+  selectedPoiIds,
   candidates,
 }: {
-  selectedPoiId: string | null;
+  selectedPoiIds: Set<string>;
   candidates: Poi[];
 }) {
   const map = useMap();
+  const prevSizeRef = useRef(0);
 
   useEffect(() => {
-    if (!selectedPoiId) return;
-    const poi = candidates.find((c) => c.id === selectedPoiId);
+    if (selectedPoiIds.size === 0) {
+      prevSizeRef.current = 0;
+      return;
+    }
+    // Only fly when a new POI is added (not removed)
+    if (selectedPoiIds.size <= prevSizeRef.current) {
+      prevSizeRef.current = selectedPoiIds.size;
+      return;
+    }
+    prevSizeRef.current = selectedPoiIds.size;
+    const lastId = Array.from(selectedPoiIds).pop();
+    const poi = candidates.find((c) => c.id === lastId);
     if (!poi) return;
     const targetZoom = Math.max(map.getZoom(), 18);
     map.flyTo([poi.lat, poi.lon], Math.min(targetZoom, 20), {
       duration: 0.55,
       easeLinearity: 0.25,
     });
-  }, [map, selectedPoiId, candidates]);
+  }, [map, selectedPoiIds, candidates]);
 
   return null;
 }
 
-export function GameMap({ gpsPoint, candidates, selectedPoiId, onSelectPoi, onMapReady, timeOfDay = "day" }: GameMapProps) {
+export function GameMap({ gpsPoint, candidates, selectedPoiIds, onSelectPoi, onMapReady, timeOfDay = "day" }: GameMapProps) {
   const center: [number, number] = [gpsPoint.lat, gpsPoint.lon];
-  const hasSelection = !!selectedPoiId;
+  const hasSelection = selectedPoiIds.size > 0;
 
   const numbered = useMemo(
     () =>
       candidates
         .map((poi, index) => ({ poi, num: index + 1 }))
-        .sort((a, b) => (a.poi.id === selectedPoiId ? 1 : 0) - (b.poi.id === selectedPoiId ? 1 : 0)),
-    [candidates, selectedPoiId],
+        .sort((a, b) => (selectedPoiIds.has(a.poi.id) ? 1 : 0) - (selectedPoiIds.has(b.poi.id) ? 1 : 0)),
+    [candidates, selectedPoiIds],
   );
 
   return (
     <MapContainer center={center} zoom={19} maxZoom={21} className={`game-map game-map--${timeOfDay}`}>
       <MapUpdater lat={gpsPoint.lat} lon={gpsPoint.lon} candidates={candidates} onMapReady={onMapReady} />
-      <SelectionFocuser selectedPoiId={selectedPoiId} candidates={candidates} />
+      <SelectionFocuser selectedPoiIds={selectedPoiIds} candidates={candidates} />
       <TileLayer
         key={timeOfDay}
         attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a> &copy; <a href="https://carto.com/">CARTO</a>'
@@ -189,7 +200,7 @@ export function GameMap({ gpsPoint, candidates, selectedPoiId, onSelectPoi, onMa
       </Marker>
 
       {numbered.map(({ poi, num }) => {
-        const isSelected = poi.id === selectedPoiId;
+        const isSelected = selectedPoiIds.has(poi.id);
         const dimmed = hasSelection && !isSelected;
         const category = formatCategory(poi.category);
         return (

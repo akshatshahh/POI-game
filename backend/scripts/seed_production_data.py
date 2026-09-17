@@ -106,7 +106,7 @@ def generate_gps_points(conn, count: int):
     """Generate GPS visit points from real POI locations in the database."""
     from app.config import settings
     from app.geo import lat_lon_to_h3
-    from app.services.poi_service import extract_category
+    from app.services.poi_service import display_category
 
     cur = conn.cursor()
 
@@ -114,14 +114,26 @@ def generate_gps_points(conn, count: int):
                 "WHERE table_name = 'places' AND column_name = 'lat'")
     has_latlon = cur.fetchone() is not None
 
+    cur.execute(
+        "SELECT column_name FROM information_schema.columns "
+        "WHERE table_name = 'places' AND column_name = 'basic_category'"
+    )
+    has_basic = cur.fetchone() is not None
+
+    basic_col = "basic_category" if has_basic else "NULL::text AS basic_category"
+
     if has_latlon:
-        cur.execute("SELECT id, lat, lon, categories::text FROM places WHERE lat IS NOT NULL")
+        cur.execute(
+            f"SELECT id, lat, lon, categories::text, {basic_col} "
+            "FROM places WHERE lat IS NOT NULL"
+        )
     else:
-        cur.execute("""
+        cur.execute(f"""
             SELECT id,
                    ST_Y(ST_Centroid(geometry::geometry)) AS lat,
                    ST_X(ST_Centroid(geometry::geometry)) AS lon,
-                   categories::text
+                   categories::text,
+                   {basic_col}
             FROM places
         """)
 
@@ -137,8 +149,8 @@ def generate_gps_points(conn, count: int):
     created = 0
 
     for _ in range(count):
-        poi_id, poi_lat, poi_lon, cats_text = random.choice(all_pois)
-        category = extract_category(cats_text)
+        poi_id, poi_lat, poi_lon, cats_text, basic_cat = random.choice(all_pois)
+        category = display_category(basic_cat, cats_text)
 
         lat, lon = gps_jitter(poi_lat, poi_lon, max_meters=20.0)
 

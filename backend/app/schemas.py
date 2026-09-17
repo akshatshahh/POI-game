@@ -113,13 +113,22 @@ class NextQuestionResponse(BaseModel):
 
 class AnswerRequest(BaseModel):
     question_id: uuid.UUID
-    selected_poi_id: str = Field(..., min_length=1, max_length=255)
+    selected_poi_ids: list[str] = Field(..., min_length=1)
+
+    @field_validator("selected_poi_ids")
+    @classmethod
+    def validate_poi_ids(cls, v: list[str]) -> list[str]:
+        cleaned = list(dict.fromkeys(s.strip() for s in v if s.strip()))
+        if not cleaned:
+            raise ValueError("At least one POI must be selected")
+        return cleaned
 
 
 class AnswerResponse(BaseModel):
     id: uuid.UUID
     question_id: uuid.UUID
     selected_poi_id: str
+    selected_poi_ids: list[str] = []
     score_awarded: int
     created_at: datetime.datetime
 

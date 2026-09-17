@@ -66,6 +66,7 @@ async def _query_postgis(
             id,
             names::text AS names_raw,
             categories::text AS categories_raw,
+            basic_category,
             ST_Y(ST_Centroid(geometry::geometry)) AS lat,
             ST_X(ST_Centroid(geometry::geometry)) AS lon,
             ST_Distance(
@@ -91,7 +92,13 @@ async def _query_haversine(
 ) -> list[dict]:
     deg_margin = radius / _METERS_PER_DEGREE * _LON_MARGIN_FACTOR
     query = text("""
-        SELECT id, names::text AS names_raw, categories::text AS categories_raw, lat, lon
+        SELECT
+            id,
+            names::text AS names_raw,
+            categories::text AS categories_raw,
+            basic_category,
+            lat,
+            lon
         FROM places
         WHERE lat BETWEEN :lat_min AND :lat_max
           AND lon BETWEEN :lon_min AND :lon_max
@@ -119,7 +126,7 @@ def _row_to_poi(row: dict, distance_meters: float) -> dict:
     return {
         "id": str(row["id"]),
         "name": _extract_name(row["names_raw"]),
-        "category": extract_category(row["categories_raw"]),
+        "category": display_category(row.get("basic_category"), row.get("categories_raw")),
         "lat": row["lat"],
         "lon": row["lon"],
         "distance_meters": round(distance_meters, 1),
@@ -141,6 +148,13 @@ def _extract_name(names_raw: str | None) -> str:
     except (json.JSONDecodeError, TypeError):
         pass
     return str(names_raw)[:100] if names_raw else "Unknown"
+
+
+def display_category(basic_category: str | None, categories_raw: str | None) -> str:
+    """Prefer Overture basic_category for UI; fall back to legacy categories.primary."""
+    if basic_category and str(basic_category).strip():
+        return str(basic_category)
+    return extract_category(categories_raw)
 
 
 def extract_category(categories_raw: str | None) -> str:
