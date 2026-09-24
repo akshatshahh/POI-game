@@ -86,6 +86,25 @@ test("keeps eight POIs in a compact HUD without covering map locations", async (
   await expect(page.locator(".clock-panel")).toHaveCount(0);
   await expect(page.locator(".navbar .user-score")).toHaveCount(0);
 
+  const hudSizing = await hud.evaluate((element) => {
+    const prompt = element.querySelector<HTMLElement>(".hud-prompt");
+    const candidateName = element.querySelector<HTMLElement>(".hud-candidate-name");
+    if (!prompt || !candidateName) return null;
+    return {
+      panelWidth: element.getBoundingClientRect().width,
+      promptFontSize: Number.parseFloat(getComputedStyle(prompt).fontSize),
+      candidateFontSize: Number.parseFloat(getComputedStyle(candidateName).fontSize),
+    };
+  });
+  expect(hudSizing).not.toBeNull();
+  if (hudSizing) {
+    expect(hudSizing.promptFontSize).toBeGreaterThanOrEqual(14);
+    expect(hudSizing.candidateFontSize).toBeGreaterThanOrEqual(13);
+    if ((page.viewportSize()?.width ?? 0) > 1040) {
+      expect(hudSizing.panelWidth).toBeGreaterThanOrEqual(1030);
+    }
+  }
+
   const layout = await choices.evaluateAll((items) =>
     items.map((item) => {
       const rect = item.getBoundingClientRect();
