@@ -6,7 +6,8 @@ export function useAuth() {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
 
-  const fetchUser = useCallback(async () => {
+  const fetchUser = useCallback(async (showLoading: boolean) => {
+    if (showLoading) setLoading(true);
     try {
       const u = await api.get<User>("/auth/me");
       setUser(u);
@@ -18,8 +19,11 @@ export function useAuth() {
   }, []);
 
   useEffect(() => {
-    fetchUser();
+    void fetchUser(true);
   }, [fetchUser]);
+
+  const refetchUser = useCallback(() => fetchUser(true), [fetchUser]);
+  const refreshUser = useCallback(() => fetchUser(false), [fetchUser]);
 
   const logout = useCallback(async () => {
     try {
@@ -30,5 +34,5 @@ export function useAuth() {
     }
   }, []);
 
-  return { user, loading, logout, refetchUser: fetchUser };
+  return { user, loading, logout, refetchUser, refreshUser };
 }

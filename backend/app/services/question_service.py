@@ -53,6 +53,7 @@ async def get_next_question(
     db: AsyncSession,
     user_id: uuid.UUID,
     min_candidates: int = MIN_CANDIDATES,
+    exclude_question_id: uuid.UUID | None = None,
 ) -> dict | None:
     """Select the next unanswered question for a user.
 
@@ -69,6 +70,12 @@ async def get_next_question(
         .scalar_subquery()
     )
     exclusion: list[ColumnElement] = [GpsPoint.id.notin_(closed_points)]
+
+    if exclude_question_id is not None:
+        skipped_points = select(Question.gps_point_id).where(
+            Question.id == exclude_question_id
+        )
+        exclusion.append(GpsPoint.id.notin_(skipped_points))
 
     if settings.use_h3_dedup:
         # Skip GPS points in H3 cells the user already answered.

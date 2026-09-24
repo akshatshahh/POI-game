@@ -5,9 +5,10 @@ import type { User } from "../lib/types";
 interface NavbarProps {
   user: User | null;
   onLogout: () => void;
+  hideScore?: boolean;
 }
 
-export function Navbar({ user, onLogout }: NavbarProps) {
+export function Navbar({ user, onLogout, hideScore = false }: NavbarProps) {
   const avatar = user ? safeAvatarUrl(user.avatar_url) : null;
   return (
     <nav className="navbar">
@@ -33,7 +34,7 @@ export function Navbar({ user, onLogout }: NavbarProps) {
                 />
               )}
               <span className="user-name">{user.display_name}</span>
-              <span className="user-score">{user.score} pts</span>
+              {!hideScore && <span className="user-score">{user.score} pts</span>}
               <button onClick={onLogout} className="btn btn-sm btn-outline">
                 Logout
               </button>

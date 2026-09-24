@@ -10,19 +10,30 @@ import { Login } from "./pages/Login";
 import { Register } from "./pages/Register";
 import { useAuth } from "./hooks/useAuth";
 
-function AppShell({ user, loading, logout, refetchUser }: ReturnType<typeof useAuth>) {
+function AppShell({
+  user,
+  loading,
+  logout,
+  refetchUser,
+  refreshUser,
+}: ReturnType<typeof useAuth>) {
   const location = useLocation();
   const isPlay = location.pathname === "/play";
 
   // Wait for /auth/me before rendering any route — prevents protected pages
   // from briefly mounting (and calling game APIs) while auth is unknown.
   if (loading) {
-    return <LoadingScreen label="Loading..." />;
+    return (
+      <LoadingScreen
+        label="Signing you in"
+        detail="Please wait while we get your game ready."
+      />
+    );
   }
 
   return (
     <>
-      <Navbar user={user} onLogout={logout} />
+      <Navbar user={user} onLogout={logout} hideScore={isPlay} />
       <main className={isPlay ? "main-content main-content--play" : "main-content"}>
         <Routes>
           {/* Public */}
@@ -43,8 +54,9 @@ function AppShell({ user, loading, logout, refetchUser }: ReturnType<typeof useA
               <RequireAuth user={user}>
                 <Play
                   userId={user?.id ?? ""}
+                  currentScore={user?.score ?? 0}
                   isFirstTimePlayer={user?.answers_count === 0}
-                  onScoreUpdate={refetchUser}
+                  onScoreUpdate={refreshUser}
                 />
               </RequireAuth>
             }
