@@ -1,5 +1,7 @@
 """Game endpoints: next question, answer submission."""
 
+import uuid
+
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
@@ -20,10 +22,15 @@ router = APIRouter(prefix="/game", tags=["game"])
 
 @router.get("/next-question", response_model=NextQuestionResponse)
 async def next_question(
+    exclude_question_id: uuid.UUID | None = None,
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> dict:
-    result = await get_next_question(db, user_id=user.id)
+    result = await get_next_question(
+        db,
+        user_id=user.id,
+        exclude_question_id=exclude_question_id,
+    )
     if result is None:
         raise HTTPException(
             status_code=404,

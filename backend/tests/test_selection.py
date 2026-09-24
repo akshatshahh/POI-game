@@ -84,6 +84,25 @@ async def test_locked_questions_are_never_served(db_session, monkeypatch) -> Non
 
 
 @pytest.mark.asyncio
+async def test_explicitly_excluded_question_is_not_served(db_session, monkeypatch) -> None:
+    """A timed-out question should not be returned immediately again."""
+    monkeypatch.setattr(question_service, "get_nearby_pois", _fake_nearby)
+
+    _, q_skipped = await _make_point_with_question(db_session, "89a-cell-a")
+    _, q_available = await _make_point_with_question(db_session, "89a-cell-b")
+    user = await _make_user(db_session, "timer-player")
+
+    result = await question_service.get_next_question(
+        db_session,
+        user.id,
+        exclude_question_id=q_skipped.id,
+    )
+
+    assert result is not None
+    assert result["question_id"] == str(q_available.id)
+
+
+@pytest.mark.asyncio
 async def test_displayed_candidates_come_from_frozen_set(db_session, monkeypatch) -> None:
     """What the user sees must be a slice of the validated frozen set."""
     monkeypatch.setattr(question_service, "get_nearby_pois", _fake_nearby)

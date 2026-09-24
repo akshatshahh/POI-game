@@ -32,6 +32,7 @@ interface TutorialLayout {
 
 interface FirstTimeTutorialProps {
   userId: string;
+  onVisibilityChange?: (isOpen: boolean) => void;
 }
 
 const STORAGE_VERSION = "poi-game:tutorial:v1";
@@ -86,13 +87,17 @@ function shouldOpenTutorial(userId: string): boolean {
   }
 }
 
-export function FirstTimeTutorial({ userId }: FirstTimeTutorialProps) {
+export function FirstTimeTutorial({ userId, onVisibilityChange }: FirstTimeTutorialProps) {
   const [isOpen, setIsOpen] = useState(() => shouldOpenTutorial(userId));
   const [stepIndex, setStepIndex] = useState(0);
   const [layout, setLayout] = useState<TutorialLayout | null>(null);
   const cardRef = useRef<HTMLElement>(null);
   const nextButtonRef = useRef<HTMLButtonElement>(null);
   const step = STEPS[stepIndex];
+
+  useEffect(() => {
+    onVisibilityChange?.(isOpen);
+  }, [isOpen, onVisibilityChange]);
 
   const finishTutorial = useCallback(() => {
     try {

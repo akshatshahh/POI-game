@@ -1,7 +1,7 @@
-import { useEffect, useMemo, useRef } from "react";
-import { MapContainer, TileLayer, Marker, Tooltip, useMap } from "react-leaflet";
+import { useEffect, useMemo } from "react";
+import { MapContainer, Marker, TileLayer, Tooltip, useMap } from "react-leaflet";
 import L from "leaflet";
-import type { Poi, GpsPoint } from "../lib/types";
+import type { GpsPoint, Poi } from "../lib/types";
 import type { TimeOfDay } from "../lib/timeOfDay";
 import { formatCategory } from "../lib/formatCategory";
 import "leaflet/dist/leaflet.css";
@@ -29,69 +29,170 @@ const GPS_ICON = new L.Icon({
   shadowSize: [41, 41],
 });
 
-// Extra bottom padding keeps the HUD from covering markers.
-const FIT_OPTIONS: L.FitBoundsOptions = {
-  paddingTopLeft: [50, 50],
-  paddingBottomRight: [50, 220],
-  maxZoom: 20,
-};
+const MAP_EDGE_PADDING = 52;
+const HUD_GAP = 18;
+const MARKER_CLEARANCE = 24;
 
-/** Bounds covering the GPS point and all candidate POIs; null when there are no candidates. */
+interface MapPadding {
+  topLeft: L.Point;
+  bottomRight: L.Point;
+}
+
 function questionBounds(lat: number, lon: number, candidates: Poi[]): L.LatLngBounds | null {
   if (candidates.length === 0) return null;
   const points: L.LatLngExpression[] = [
     [lat, lon],
-    ...candidates.map((c) => [c.lat, c.lon] as L.LatLngExpression),
+    ...candidates.map((candidate) => [candidate.lat, candidate.lon] as L.LatLngExpression),
   ];
   return L.latLngBounds(points);
 }
 
-function escapeHtml(text: string): string {
-  return text
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;");
+function mapPadding(map: L.Map): MapPadding {
+  const container = map.getContainer();
+  const mapRect = container.getBoundingClientRect();
+  const hud = container
+    .closest(".play-map-stack")
+    ?.querySelector<HTMLElement>(".play-hud-panel");
+
+  let bottom = MAP_EDGE_PADDING;
+  if (hud) {
+    const hudRect = hud.getBoundingClientRect();
+    const overlapsMap =
+      hudRect.left < mapRect.right &&
+      hudRect.right > mapRect.left &&
+      hudRect.top < mapRect.bottom &&
+      hudRect.bottom > mapRect.top;
+
+    if (overlapsMap) {
+      bottom = Math.max(
+        bottom,
+        Math.ceil(mapRect.bottom - hudRect.top + HUD_GAP + MARKER_CLEARANCE),
+      );
+    }
+  }
+
+  const maximumBottom = Math.max(
+    MAP_EDGE_PADDING,
+    Math.floor(mapRect.height - MAP_EDGE_PADDING - 120),
+  );
+
+  return {
+    topLeft: L.point(MAP_EDGE_PADDING, MAP_EDGE_PADDING),
+    bottomRight: L.point(MAP_EDGE_PADDING, Math.min(bottom, maximumBottom)),
+  };
 }
 
-function numberedPoiIcon(
-  num: number,
-  selected: boolean,
-  dimmed: boolean,
-  name?: string,
-  category?: string,
-): L.DivIcon {
+function fitLocations(
+  map: L.Map,
+  lat: number,
+  lon: number,
+  candidates: Poi[],
+  animate = false,
+): void {
+  const bounds = questionBounds(lat, lon, candidates);
+  const padding = mapPadding(map);
+
+  if (bounds) {
+    map.fitBounds(bounds, {
+      paddingTopLeft: padding.topLeft,
+      paddingBottomRight: padding.bottomRight,
+      maxZoom: 20,
+      animate,
+      duration: animate ? 0.45 : undefined,
+    });
+    return;
+  }
+
+  map.setView([lat, lon], 19, { animate });
+}
+
+function panFocusClearOfHud(
+  map: L.Map,
+  lat: number,
+  lon: number,
+  candidates: Poi[],
+  selectedPoiIds: Set<string>,
+): void {
+  const padding = mapPadding(map);
+  const size = map.getSize();
+  const safe = {
+    left: padding.topLeft.x,
+    top: padding.topLeft.y,
+    right: size.x - padding.bottomRight.x,
+    bottom: size.y - padding.bottomRight.y,
+  };
+  const gpsLocation: L.LatLngExpression = [lat, lon];
+  const allLocations: L.LatLngExpression[] = [
+    gpsLocation,
+    ...candidates.map((candidate) => [candidate.lat, candidate.lon] as L.LatLngExpression),
+  ];
+  const selectedLocations: L.LatLngExpression[] = [
+    gpsLocation,
+    ...candidates
+      .filter((candidate) => selectedPoiIds.has(candidate.id))
+      .map((candidate) => [candidate.lat, candidate.lon] as L.LatLngExpression),
+  ];
+
+  const projectedBounds = (locations: L.LatLngExpression[]) => {
+    const points = locations.map((location) => map.latLngToContainerPoint(location));
+    return {
+      minX: Math.min(...points.map((point) => point.x)),
+      minY: Math.min(...points.map((point) => point.y)),
+      maxX: Math.max(...points.map((point) => point.x)),
+      maxY: Math.max(...points.map((point) => point.y)),
+    };
+  };
+  const fitsSafeArea = (projected: ReturnType<typeof projectedBounds>) =>
+    projected.maxX - projected.minX <= safe.right - safe.left &&
+    projected.maxY - projected.minY <= safe.bottom - safe.top;
+
+  const allProjected = projectedBounds(allLocations);
+  let focusLocations = fitsSafeArea(allProjected)
+    ? allLocations
+    : selectedPoiIds.size > 0
+      ? selectedLocations
+      : [gpsLocation];
+  let projected = projectedBounds(focusLocations);
+
+  if (!fitsSafeArea(projected) && selectedPoiIds.size > 0) {
+    map.fitBounds(L.latLngBounds(focusLocations), {
+      paddingTopLeft: padding.topLeft,
+      paddingBottomRight: padding.bottomRight,
+      maxZoom: map.getZoom(),
+      animate: true,
+      duration: 0.25,
+    });
+    return;
+  }
+
+  if (!fitsSafeArea(projected)) {
+    focusLocations = [gpsLocation];
+    projected = projectedBounds(focusLocations);
+  }
+
+  let panX = 0;
+  let panY = 0;
+  if (projected.minX < safe.left) panX = projected.minX - safe.left;
+  else if (projected.maxX > safe.right) panX = projected.maxX - safe.right;
+  if (projected.minY < safe.top) panY = projected.minY - safe.top;
+  else if (projected.maxY > safe.bottom) panY = projected.maxY - safe.bottom;
+
+  if (Math.abs(panX) > 1 || Math.abs(panY) > 1) {
+    map.panBy([panX, panY], { animate: true, duration: 0.2 });
+  }
+}
+
+function numberedPoiIcon(num: number, selected: boolean): L.DivIcon {
   const badgeSize = selected ? 40 : 30;
-  const classes = [
-    "poi-num-marker",
-    selected ? "poi-num-marker--selected" : "",
-    dimmed ? "poi-num-marker--dimmed" : "",
-  ]
+  const classes = ["poi-num-marker", selected ? "poi-num-marker--selected" : ""]
     .filter(Boolean)
     .join(" ");
 
-  const labelHtml =
-    selected && name
-      ? `<span class="poi-num-label">
-           <strong>${num}. ${escapeHtml(name)}</strong>
-           ${category ? `<span class="poi-num-label-cat">${escapeHtml(category)}</span>` : ""}
-         </span>`
-      : "";
-
-  // Selected: badge + name label to the RIGHT (avoids colliding with GPS label above the red pin)
-  const html = selected
-    ? `<div class="poi-num-wrap poi-num-wrap--selected"><span class="poi-num-badge">${num}</span>${labelHtml}</div>`
-    : `<div class="poi-num-wrap"><span class="poi-num-badge">${num}</span></div>`;
-
-  const iconW = selected ? 240 : badgeSize;
-  const iconH = selected ? 48 : badgeSize;
-
   return L.divIcon({
     className: classes,
-    html,
-    iconSize: [iconW, iconH],
-    // Anchor on the badge center (left side of the wide selected icon)
-    iconAnchor: [badgeSize / 2, iconH / 2],
+    html: `<div class="poi-num-wrap"><span class="poi-num-badge">${num}</span></div>`,
+    iconSize: [badgeSize, badgeSize],
+    iconAnchor: [badgeSize / 2, badgeSize / 2],
   });
 }
 
@@ -104,87 +205,97 @@ interface GameMapProps {
   timeOfDay?: TimeOfDay;
 }
 
-function MapUpdater({ lat, lon, candidates, onMapReady }: {
+function MapUpdater({
+  lat,
+  lon,
+  candidates,
+  selectedPoiIds,
+  onMapReady,
+}: {
   lat: number;
   lon: number;
   candidates: Poi[];
+  selectedPoiIds: Set<string>;
   onMapReady?: (fn: () => void) => void;
 }) {
   const map = useMap();
 
   useEffect(() => {
-    const bounds = questionBounds(lat, lon, candidates);
-    if (bounds) {
-      map.fitBounds(bounds, FIT_OPTIONS);
-    } else {
-      map.setView([lat, lon], 19);
-    }
+    let frame = 0;
+    const fitAllLocations = () => {
+      window.cancelAnimationFrame(frame);
+      frame = window.requestAnimationFrame(() => {
+        map.invalidateSize({ animate: false, pan: false });
+        fitLocations(map, lat, lon, candidates);
+      });
+    };
+
+    fitAllLocations();
+    const resizeObserver = new ResizeObserver(fitAllLocations);
+    resizeObserver.observe(map.getContainer());
+    const hud = map
+      .getContainer()
+      .closest(".play-map-stack")
+      ?.querySelector<HTMLElement>(".play-hud-panel");
+    if (hud) resizeObserver.observe(hud);
+
+    return () => {
+      window.cancelAnimationFrame(frame);
+      resizeObserver.disconnect();
+    };
   }, [map, lat, lon, candidates]);
 
   useEffect(() => {
+    const keepFocusVisible = () => {
+      panFocusClearOfHud(map, lat, lon, candidates, selectedPoiIds);
+    };
+    const frame = window.requestAnimationFrame(keepFocusVisible);
+    map.on("zoomend", keepFocusVisible);
+
+    return () => {
+      window.cancelAnimationFrame(frame);
+      map.off("zoomend", keepFocusVisible);
+    };
+  }, [map, lat, lon, candidates, selectedPoiIds]);
+
+  useEffect(() => {
     onMapReady?.(() => {
-      const bounds = questionBounds(lat, lon, candidates);
-      if (bounds) {
-        map.flyToBounds(bounds, { ...FIT_OPTIONS, duration: 0.6 });
-      } else {
-        map.flyTo([lat, lon], 19, { duration: 0.6 });
-      }
+      fitLocations(map, lat, lon, candidates, true);
     });
   }, [map, lat, lon, candidates, onMapReady]);
 
   return null;
 }
 
-function SelectionFocuser({
-  selectedPoiIds,
+export function GameMap({
+  gpsPoint,
   candidates,
-}: {
-  selectedPoiIds: Set<string>;
-  candidates: Poi[];
-}) {
-  const map = useMap();
-  const prevSizeRef = useRef(0);
-
-  useEffect(() => {
-    if (selectedPoiIds.size === 0) {
-      prevSizeRef.current = 0;
-      return;
-    }
-    // Only fly when a new POI is added (not removed)
-    if (selectedPoiIds.size <= prevSizeRef.current) {
-      prevSizeRef.current = selectedPoiIds.size;
-      return;
-    }
-    prevSizeRef.current = selectedPoiIds.size;
-    const lastId = Array.from(selectedPoiIds).pop();
-    const poi = candidates.find((c) => c.id === lastId);
-    if (!poi) return;
-    const targetZoom = Math.max(map.getZoom(), 18);
-    map.flyTo([poi.lat, poi.lon], Math.min(targetZoom, 20), {
-      duration: 0.55,
-      easeLinearity: 0.25,
-    });
-  }, [map, selectedPoiIds, candidates]);
-
-  return null;
-}
-
-export function GameMap({ gpsPoint, candidates, selectedPoiIds, onSelectPoi, onMapReady, timeOfDay = "day" }: GameMapProps) {
+  selectedPoiIds,
+  onSelectPoi,
+  onMapReady,
+  timeOfDay = "day",
+}: GameMapProps) {
   const center: [number, number] = [gpsPoint.lat, gpsPoint.lon];
-  const hasSelection = selectedPoiIds.size > 0;
-
   const numbered = useMemo(
     () =>
       candidates
         .map((poi, index) => ({ poi, num: index + 1 }))
-        .sort((a, b) => (selectedPoiIds.has(a.poi.id) ? 1 : 0) - (selectedPoiIds.has(b.poi.id) ? 1 : 0)),
+        .sort(
+          (a, b) =>
+            Number(selectedPoiIds.has(a.poi.id)) - Number(selectedPoiIds.has(b.poi.id)),
+        ),
     [candidates, selectedPoiIds],
   );
 
   return (
     <MapContainer center={center} zoom={19} maxZoom={21} className={`game-map game-map--${timeOfDay}`}>
-      <MapUpdater lat={gpsPoint.lat} lon={gpsPoint.lon} candidates={candidates} onMapReady={onMapReady} />
-      <SelectionFocuser selectedPoiIds={selectedPoiIds} candidates={candidates} />
+      <MapUpdater
+        lat={gpsPoint.lat}
+        lon={gpsPoint.lon}
+        candidates={candidates}
+        selectedPoiIds={selectedPoiIds}
+        onMapReady={onMapReady}
+      />
       <TileLayer
         key={timeOfDay}
         attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a> &copy; <a href="https://carto.com/">CARTO</a>'
@@ -201,28 +312,25 @@ export function GameMap({ gpsPoint, candidates, selectedPoiIds, onSelectPoi, onM
 
       {numbered.map(({ poi, num }) => {
         const isSelected = selectedPoiIds.has(poi.id);
-        const dimmed = hasSelection && !isSelected;
         const category = formatCategory(poi.category);
         return (
           <Marker
             key={poi.id}
             position={[poi.lat, poi.lon]}
-            icon={numberedPoiIcon(num, isSelected, dimmed, poi.name, category)}
-            zIndexOffset={isSelected ? 2000 : dimmed ? -100 : num}
+            icon={numberedPoiIcon(num, isSelected)}
+            zIndexOffset={isSelected ? 2000 : num}
             riseOnHover
             eventHandlers={{
-              click: (e) => {
-                L.DomEvent.stopPropagation(e.originalEvent);
+              click: (event) => {
+                L.DomEvent.stopPropagation(event.originalEvent);
                 onSelectPoi(poi.id);
               },
             }}
           >
-            {!isSelected && (
-              <Tooltip direction="top" offset={[0, -18]} className="poi-tooltip" opacity={1}>
-                <strong>{poi.name}</strong>
-                <span className="poi-tooltip-cat">{category}</span>
-              </Tooltip>
-            )}
+            <Tooltip direction="top" offset={[0, -18]} className="poi-tooltip" opacity={1}>
+              <strong>{poi.name}</strong>
+              <span className="poi-tooltip-cat">{category}</span>
+            </Tooltip>
           </Marker>
         );
       })}
