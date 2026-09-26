@@ -50,3 +50,7 @@ client_secret_*.json
 
 # Local data exports (POI dumps, samples)
 data/exports/
+
+# Private notes. Keep on this machine only.
+AGENTS.md
+RULES.md
