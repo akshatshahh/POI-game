@@ -11,6 +11,7 @@ import { Register } from "./pages/Register";
 import { useAuth } from "./hooks/useAuth";
 import { useState } from "react";
 import { LogoutFeedback } from "./components/LogoutFeedback";
+import { AboutContent } from "./components/AboutContent";
 
 function AppShell({
   user,
@@ -35,13 +36,14 @@ function AppShell({
   }
 
   return (
-    <>
+    <div className={isPlay ? "app-shell app-shell--play" : "app-shell"}>
       <Navbar user={user} onLogout={() => setFeedbackOpen(true)} hideScore={isPlay} />
       {feedbackOpen && user && <LogoutFeedback onLogout={logout} onCancel={() => setFeedbackOpen(false)} />}
       <main className={isPlay ? "main-content main-content--play" : "main-content"}>
         <Routes>
           {/* Public */}
           <Route path="/" element={<Home user={user} />} />
+          <Route path="/about" element={<div className="page"><AboutContent /></div>} />
           <Route
             path="/login"
             element={user ? <Navigate to="/" replace /> : <Login onAuth={refetchUser} />}
@@ -79,7 +81,7 @@ function AppShell({
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </main>
-    </>
+    </div>
   );
 }
 

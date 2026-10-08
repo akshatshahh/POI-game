@@ -63,7 +63,7 @@ export function LogoutFeedback({ onLogout, onCancel }: Props) {
           {[1, 2, 3, 4, 5].map((rating) => (
             <label key={rating}>
               <input type="radio" name="rating" value={rating} required aria-label={`${rating} ${rating === 1 ? "star" : "stars"}`} />
-              <span aria-hidden="true">★</span><span>{rating}</span>
+              <span aria-hidden="true">★</span>
             </label>
           ))}
         </fieldset>
@@ -77,9 +77,9 @@ export function LogoutFeedback({ onLogout, onCancel }: Props) {
         <p>Only project administrators can read this feedback. Email is only needed if you want a reply. Feedback is not included in research-label exports.</p>
         {error && <p role="alert">{error}</p>}
         <div className="feedback-actions">
-          <button type="submit" disabled={saving}>{saving ? "Saving…" : "Submit feedback and log out"}</button>
-          <button type="button" onClick={() => void leave()}>Skip and log out</button>
-          <button type="button" disabled={saving} onClick={onCancel}>Keep playing</button>
+          <button className="feedback-button feedback-button--primary" type="submit" disabled={saving}>{saving ? "Saving…" : "Submit feedback and log out"}</button>
+          <button className="feedback-button feedback-button--secondary" type="button" onClick={() => void leave()}>Skip and log out</button>
+          <button className="feedback-button feedback-button--quiet" type="button" disabled={saving} onClick={onCancel}>Keep playing</button>
         </div>
       </form>
     </dialog>

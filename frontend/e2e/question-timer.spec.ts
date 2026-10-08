@@ -108,6 +108,11 @@ test("pauses the question timer while logout feedback is open", async ({ page })
   await mockGame(page, 1, exclusions);
   await page.goto("/play");
   await expect(page.getByRole("timer")).toContainText("1:00");
+  expect(await page.evaluate(() => {
+    const header = document.querySelector(".navbar")!.getBoundingClientRect();
+    const game = document.querySelector(".main-content--play")!.getBoundingClientRect();
+    return Math.abs(game.top - header.bottom) < 2 && Math.abs(game.bottom - window.innerHeight) < 2;
+  })).toBe(true);
   await page.clock.fastForward(10_000);
   await page.getByRole("button", { name: "Logout", exact: true }).click();
   await page.clock.fastForward(70_000);

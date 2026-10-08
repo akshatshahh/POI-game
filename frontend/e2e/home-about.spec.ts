@@ -61,7 +61,7 @@ async function expectAboutContent(page: Page): Promise<void> {
     "href",
     "mailto:akshatdi@usc.edu?cc=hsurani@usc.edu&subject=POI%20Game%20Feedback",
   );
-  await expect(page.getByRole("link", { name: "About" })).toHaveCount(0);
+  await expect(page.getByRole("link", { name: "About", exact: true })).toHaveAttribute("href", "/about");
 }
 
 test("places project information below the signed-out login prompt", async ({ page }) => {
@@ -84,4 +84,22 @@ test("keeps project information on the signed-in home page", async ({ page }) =>
   await expect(continueButton).toBeVisible();
   await expectAboutContent(page);
   await expectBelow(continueButton, aboutContent);
+  const leftNavigation = page.locator(".navbar-left");
+  await expect(leftNavigation.getByRole("link", { name: "POI Game", exact: true })).toHaveText("POI Game");
+  for (const name of ["About", "Play", "Leaderboard"]) {
+    await expect(leftNavigation.getByRole("link", { name, exact: true })).toBeVisible();
+  }
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+  await page.getByRole("link", { name: "About", exact: true }).click();
+  await expect(page).toHaveURL(/\/about$/);
+  await expectAboutContent(page);
+});
+
+test("About is available directly without signing in at narrow widths", async ({ page }) => {
+  await page.setViewportSize({ width: 320, height: 740 });
+  await mockSignedOutUser(page);
+  await page.goto("/about");
+  await expectAboutContent(page);
+  await expect(page.getByRole("link", { name: "POI Game", exact: true })).toHaveText("POI Game");
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
 });

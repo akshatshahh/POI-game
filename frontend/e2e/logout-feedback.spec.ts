@@ -22,6 +22,13 @@ test("logout feedback can retry without losing input, then saves and logs out", 
   await page.goto("/");
   await page.getByRole("button", { name: "Logout", exact: true }).click();
   await expect(page.getByRole("dialog")).toBeVisible();
+  await expect(page.locator(".feedback-stars label")).toHaveText(["★", "★", "★", "★", "★"]);
+  const actionStyles = await page.locator(".feedback-actions button").evaluateAll((buttons) => buttons.map((button) => {
+    const style = getComputedStyle(button);
+    return { background: style.backgroundColor, color: style.color };
+  }));
+  expect(new Set(actionStyles.map((style) => style.background)).size).toBe(3);
+  expect(actionStyles.every((style) => style.color === "rgb(23, 32, 51)")).toBe(true);
   await expect(page.getByText("1 = least liked · 5 = best")).toBeVisible();
   await expect(page.getByLabel("Comments (optional)")).toHaveAttribute("placeholder", /feedback or questions/);
   const bounds = await page.getByRole("dialog").boundingBox();
@@ -43,6 +50,7 @@ test("logout feedback can retry without losing input, then saves and logs out", 
 });
 
 test("feedback can be cancelled or skipped without sending a rating", async ({ page }) => {
+  await page.setViewportSize({ width: 320, height: 740 });
   let signedIn = true;
   await page.route("http://localhost:8000/**", async (route) => {
     const path = new URL(route.request().url()).pathname;
@@ -53,6 +61,19 @@ test("feedback can be cancelled or skipped without sending a rating", async ({ p
   });
   await page.goto("/");
   await page.getByRole("button", { name: "Logout", exact: true }).click();
+  const dialog = await page.getByRole("dialog").boundingBox();
+  expect(dialog).not.toBeNull();
+  if (dialog) {
+    expect(dialog.x).toBeGreaterThanOrEqual(0);
+    expect(dialog.x + dialog.width).toBeLessThanOrEqual(320);
+    expect(dialog.y + dialog.height).toBeLessThanOrEqual(740);
+  }
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+  const star = page.getByRole("radio", { name: "1 star", exact: true });
+  await star.focus();
+  await page.keyboard.press("ArrowRight");
+  await expect(page.getByRole("radio", { name: "2 stars" })).toBeChecked();
+  await expect(page.locator(".feedback-stars input").first()).toHaveCSS("opacity", "0");
   await page.keyboard.press("Escape");
   await expect(page.getByRole("dialog")).toHaveCount(0);
   await page.getByRole("button", { name: "Logout", exact: true }).click();

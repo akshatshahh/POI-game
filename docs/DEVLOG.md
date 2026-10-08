@@ -1,5 +1,9 @@
 # POI Game — Development Log
 
+## 2026-10-07 — Simplify navigation and feedback controls
+
+Moved About, Play and Leaderboard beside the text-only POI Game brand, with account controls on the right. About reuses the same project information shown on Home. Navigation wraps on small screens, and the game fills the remaining viewport without assuming a fixed header height. Feedback actions use three distinct yellow treatments with dark text and keyboard focus, and rating stars no longer show adjacent numbers. No annotation or storage behavior changed.
+
 ## 2026-10-07 — Make logout feedback shorter and clearer
 
 Centered the feedback dialog, rating choices and buttons. Explained that 1 is least liked and 5 is best. Moved the comments guidance into the text box as a placeholder while retaining its label and accessible description. Added desktop/mobile checks for the scale, hint and dialog position. No storage or consensus rules changed.

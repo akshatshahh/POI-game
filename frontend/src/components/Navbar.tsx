@@ -11,19 +11,20 @@ interface NavbarProps {
 export function Navbar({ user, onLogout, hideScore = false }: NavbarProps) {
   const avatar = user ? safeAvatarUrl(user.avatar_url) : null;
   return (
-    <nav className="navbar">
-      <div className="navbar-brand">
-        <Link to="/">🎯 POI Game</Link>
+    <nav className="navbar" aria-label="Main navigation">
+      <div className="navbar-left">
+        <div className="navbar-brand">
+          <Link to="/">POI Game</Link>
+        </div>
+        <div className="navbar-links">
+          <Link to="/about" className="nav-link">About</Link>
+          {user && <>
+            <Link to="/play" className="nav-link">Play</Link>
+            <Link to="/leaderboard" className="nav-link">Leaderboard</Link>
+          </>}
+        </div>
       </div>
-      <div className="navbar-links">
         {user ? (
-          <>
-            <Link to="/play" className="nav-link">
-              Play
-            </Link>
-            <Link to="/leaderboard" className="nav-link">
-              Leaderboard
-            </Link>
             <div className="navbar-user">
               {avatar && (
                 <img
@@ -39,7 +40,6 @@ export function Navbar({ user, onLogout, hideScore = false }: NavbarProps) {
                 Logout
               </button>
             </div>
-          </>
         ) : (
           <div className="navbar-auth">
             <Link to="/login" className="btn btn-sm btn-outline">
@@ -50,7 +50,6 @@ export function Navbar({ user, onLogout, hideScore = false }: NavbarProps) {
             </Link>
           </div>
         )}
-      </div>
     </nav>
   );
 }
