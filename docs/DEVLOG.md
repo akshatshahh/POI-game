@@ -1,5 +1,9 @@
 # POI Game — Development Log
 
+## 2026-10-07 — Fill rating stars up to the selected value
+
+Feedback now fills all stars up to the chosen rating and outlines the remaining stars. Selecting a lower rating clears the extra filled stars. Native radio controls, keyboard navigation and the single saved rating remain unchanged. Added browser checks for increasing and decreasing ratings and keyboard selection.
+
 ## 2026-10-07 — Make feedback available during play
 
 Added Feedback beside Leaderboard for signed-in players. It reuses the existing rating, comments and optional email form without ending the session. Successful submission shows a confirmation; closing the form keeps the player signed in. The Logout entry retains its original submit-or-skip behavior. The game timer pauses for either form mode. No backend or database changes were needed.

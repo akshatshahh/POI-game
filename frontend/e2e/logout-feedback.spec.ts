@@ -122,7 +122,14 @@ test("logout feedback can retry without losing input, then saves and logs out", 
   await page.goto("/");
   await page.getByRole("button", { name: "Logout", exact: true }).click();
   await expect(page.getByRole("dialog")).toBeVisible();
-  await expect(page.locator(".feedback-stars label")).toHaveText(["★", "★", "★", "★", "★"]);
+  await expect(page.locator(".feedback-stars label")).toHaveText(["☆", "☆", "☆", "☆", "☆"]);
+  for (const rating of [1, 3, 5, 2]) {
+    await page.getByRole("radio", { name: `${rating} ${rating === 1 ? "star" : "stars"}`, exact: true }).check();
+    await expect(page.locator(".feedback-stars label")).toHaveText(
+      [1, 2, 3, 4, 5].map((star) => star <= rating ? "★" : "☆"),
+    );
+    await expect(page.locator(".feedback-stars input:checked")).toHaveCount(1);
+  }
   const actionStyles = await page.locator(".feedback-actions button").evaluateAll((buttons) => buttons.map((button) => {
     const style = getComputedStyle(button);
     return { background: style.backgroundColor, color: style.color };
@@ -173,6 +180,7 @@ test("feedback can be cancelled or skipped without sending a rating", async ({ p
   await star.focus();
   await page.keyboard.press("ArrowRight");
   await expect(page.getByRole("radio", { name: "2 stars" })).toBeChecked();
+  await expect(page.locator(".feedback-stars label")).toHaveText(["★", "★", "☆", "☆", "☆"]);
   await expect(page.locator(".feedback-stars input").first()).toHaveCSS("opacity", "0");
   await page.keyboard.press("Escape");
   await expect(page.getByRole("dialog")).toHaveCount(0);

@@ -2321,6 +2321,7 @@ a {
 .feedback-stars label { position: relative; display: flex; align-items: center; padding: 4px; border-radius: 6px; cursor: pointer; }
 .feedback-stars input { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; }
 .feedback-stars span { font-size: 1.5rem; }
+.feedback-stars .feedback-star--filled { color: #9a6500; }
 .feedback-stars label:has(input:checked) { color: #9a6500; background: #fef3c7; font-weight: bold; }
 .feedback-stars label:has(input:focus-visible) { outline: 3px solid #4f46e5; outline-offset: 2px; }
 .feedback-actions { display: flex; justify-content: center; flex-wrap: wrap; gap: 10px; }

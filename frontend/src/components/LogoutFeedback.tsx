@@ -17,6 +17,7 @@ export function LogoutFeedback({ mode, onComplete, onCancel }: Props) {
   const pendingRequest = useRef<AbortController | null>(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  const [selectedRating, setSelectedRating] = useState(0);
 
   useEffect(() => {
     active.current = true;
@@ -82,9 +83,10 @@ export function LogoutFeedback({ mode, onComplete, onCancel }: Props) {
         <fieldset className="feedback-stars" aria-describedby="feedback-scale">
           <legend>Rate your experience (1–5 stars)</legend>
           {[1, 2, 3, 4, 5].map((rating) => (
-            <label key={rating}>
-              <input type="radio" name="rating" value={rating} required aria-label={`${rating} ${rating === 1 ? "star" : "stars"}`} />
-              <span aria-hidden="true">★</span>
+            <label key={rating} className={rating <= selectedRating ? "feedback-star--filled" : undefined}>
+              <input type="radio" name="rating" value={rating} required checked={rating === selectedRating}
+                onChange={() => setSelectedRating(rating)} aria-label={`${rating} ${rating === 1 ? "star" : "stars"}`} />
+              <span aria-hidden="true">{rating <= selectedRating ? "★" : "☆"}</span>
             </label>
           ))}
         </fieldset>
