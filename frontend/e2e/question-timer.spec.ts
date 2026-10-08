@@ -45,6 +45,8 @@ async function mockGame(
     const headers = {
       "access-control-allow-credentials": "true",
       "access-control-allow-origin": "http://localhost:4317",
+      "access-control-allow-methods": "POST, OPTIONS",
+      "access-control-allow-headers": "content-type",
       "content-type": "application/json",
     };
 
@@ -72,6 +74,33 @@ async function mockGame(
     await route.fulfill({ status: 404, headers, json: { detail: "Not found" } });
   });
 }
+
+test("Next Question click does not send the click event as a question ID", async ({ page }) => {
+  const exclusions: string[] = [];
+  await mockGame(page, 1, exclusions);
+  await page.route("**/game/answer", (route) => route.fulfill({
+    status: 200,
+    headers: {
+      "access-control-allow-credentials": "true",
+      "access-control-allow-origin": "http://localhost:4317",
+    },
+    json: {
+      id: "00000000-0000-4000-8000-000000000301",
+      question_id: FIRST_QUESTION_ID,
+      selected_poi_id: "First-1",
+      selected_poi_ids: ["First-1"],
+      score_awarded: 5,
+      created_at: "2026-10-07T12:00:00Z",
+    },
+  }));
+  await page.goto("/play");
+  await page.locator(".hud-candidate-grid button").first().click();
+  await page.getByRole("button", { name: "Submit Answer", exact: true }).click();
+  const nextRequest = page.waitForRequest((request) => new URL(request.url()).pathname === "/game/next-question");
+  await page.getByRole("button", { name: /Next Question/ }).click();
+  expect(new URL((await nextRequest).url()).searchParams.has("exclude_question_id")).toBe(false);
+  expect(exclusions).toEqual([]);
+});
 
 test("loads a different question when the 60-second timer expires", async ({ page }) => {
   const exclusions: string[] = [];

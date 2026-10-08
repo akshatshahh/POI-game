@@ -1,5 +1,11 @@
 # POI Game — Development Log
 
+## 2026-10-07 — Fix Next Question after submitting
+
+Wrapped the Next Question callback so a button click cannot pass its event as an excluded question ID. Previously the browser sent `exclude_question_id=[object Object]`, which the backend correctly rejected with 422. Timer-based skipping still passes the actual question ID.
+
+Verified with 36 backend tests and 18 desktop/mobile browser tests, including a submit-then-next regression check. Frontend typechecking, lint, and the production build passed. Automated checks now also run lint, build, and the browser suite.
+
 ## 2026-03-09 — `chore/init-repo-structure`
 
 **What:** Initialized repository structure for the POI Game full-stack application.

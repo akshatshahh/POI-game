@@ -212,7 +212,7 @@ export function Play({ userId, currentScore, isFirstTimePlayer, onScoreUpdate }:
         error={error}
         onSelectPoi={togglePoi}
         onSubmit={handleSubmit}
-        onNextQuestion={fetchQuestion}
+        onNextQuestion={() => void fetchQuestion()}
         onRecenter={() => recenterRef.current?.()}
       />
       {isFirstTimePlayer && userId && (
