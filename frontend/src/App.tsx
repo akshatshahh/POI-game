@@ -9,6 +9,8 @@ import { Leaderboard } from "./pages/Leaderboard";
 import { Login } from "./pages/Login";
 import { Register } from "./pages/Register";
 import { useAuth } from "./hooks/useAuth";
+import { useState } from "react";
+import { LogoutFeedback } from "./components/LogoutFeedback";
 
 function AppShell({
   user,
@@ -18,6 +20,7 @@ function AppShell({
   refreshUser,
 }: ReturnType<typeof useAuth>) {
   const location = useLocation();
+  const [feedbackOpen, setFeedbackOpen] = useState(false);
   const isPlay = location.pathname === "/play";
 
   // Wait for /auth/me before rendering any route — prevents protected pages
@@ -33,7 +36,8 @@ function AppShell({
 
   return (
     <>
-      <Navbar user={user} onLogout={logout} hideScore={isPlay} />
+      <Navbar user={user} onLogout={() => setFeedbackOpen(true)} hideScore={isPlay} />
+      {feedbackOpen && user && <LogoutFeedback onLogout={logout} onCancel={() => setFeedbackOpen(false)} />}
       <main className={isPlay ? "main-content main-content--play" : "main-content"}>
         <Routes>
           {/* Public */}
@@ -57,6 +61,7 @@ function AppShell({
                   currentScore={user?.score ?? 0}
                   isFirstTimePlayer={user?.answers_count === 0}
                   onScoreUpdate={refreshUser}
+                  paused={feedbackOpen}
                 />
               </RequireAuth>
             }

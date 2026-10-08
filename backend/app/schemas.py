@@ -66,6 +66,35 @@ class LoginRequest(BaseModel):
     password: str = Field(..., min_length=1, max_length=128)
 
 
+class FeedbackRequest(BaseModel):
+    rating: int = Field(..., ge=1, le=5, strict=True)
+    comments: str | None = Field(None, max_length=4000)
+    email: str | None = Field(None, max_length=320)
+
+    @field_validator("comments", "email")
+    @classmethod
+    def clean_optional_text(cls, value: str | None) -> str | None:
+        return value.strip() or None if value is not None else None
+
+    @field_validator("email")
+    @classmethod
+    def validate_email(cls, value: str | None) -> str | None:
+        return RegisterRequest.validate_email(value) if value else None
+
+
+class FeedbackReceipt(BaseModel):
+    id: uuid.UUID
+    created_at: datetime.datetime
+
+    model_config = {"from_attributes": True}
+
+
+class FeedbackResponse(FeedbackReceipt):
+    rating: int
+    comments: str | None
+    email: str | None
+
+
 class AuthSessionResponse(BaseModel):
     """Returned after login/register; JWT is only in HttpOnly cookie (not in body)."""
 

@@ -1,5 +1,11 @@
 # POI Game — Development Log
 
+## 2026-10-07 — Ask for optional feedback at logout
+
+Added a logout dialog with a five-star rating, optional comments and optional reply email. Players can submit, skip, or keep playing; a failed save retains the form and allows retry or logout. Feedback lives in a separate Postgres table with administrator-only reading and is never joined into research-label exports. Apply the new Alembic migration before deployment.
+
+The question timer pauses while the dialog is open. Verified 45 backend tests, frontend lint/typechecking/build, and desktop/mobile browser checks for saving, retrying, skipping, cancellation, and timer pause. Replaced the empty leftover local feedback schema and applied the new migration locally; no production database was changed.
+
 ## 2026-10-07 — Fix Next Question after submitting
 
 Wrapped the Next Question callback so a button click cannot pass its event as an excluded question ID. Previously the browser sent `exclude_question_id=[object Object]`, which the backend correctly rejected with 422. Timer-based skipping still passes the actual question ID.

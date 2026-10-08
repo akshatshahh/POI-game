@@ -16,9 +16,10 @@ interface PlayProps {
   currentScore: number;
   isFirstTimePlayer: boolean;
   onScoreUpdate: () => void;
+  paused?: boolean;
 }
 
-export function Play({ userId, currentScore, isFirstTimePlayer, onScoreUpdate }: PlayProps) {
+export function Play({ userId, currentScore, isFirstTimePlayer, onScoreUpdate, paused = false }: PlayProps) {
   const navigate = useNavigate();
   const [question, setQuestion] = useState<Question | null>(null);
   const [selectedPoiIds, setSelectedPoiIds] = useState<Set<string>>(new Set());
@@ -89,7 +90,7 @@ export function Play({ userId, currentScore, isFirstTimePlayer, onScoreUpdate }:
       !loading &&
       !submitting &&
       !feedback &&
-      !tutorialOpen;
+      !tutorialOpen && !paused;
 
     if (!timerActive || !question) {
       if (timerDeadlineRef.current !== null) {
@@ -131,7 +132,7 @@ export function Play({ userId, currentScore, isFirstTimePlayer, onScoreUpdate }:
         timerDeadlineRef.current = null;
       }
     };
-  }, [feedback, handleTimeExpired, loading, question, submitting, tutorialOpen]);
+  }, [feedback, handleTimeExpired, loading, question, submitting, tutorialOpen, paused]);
 
   const handleSubmit = async () => {
     if (
