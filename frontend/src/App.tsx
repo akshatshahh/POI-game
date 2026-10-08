@@ -9,7 +9,7 @@ import { Leaderboard } from "./pages/Leaderboard";
 import { Login } from "./pages/Login";
 import { Register } from "./pages/Register";
 import { useAuth } from "./hooks/useAuth";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { LogoutFeedback } from "./components/LogoutFeedback";
 import { AboutContent } from "./components/AboutContent";
 
@@ -21,8 +21,15 @@ function AppShell({
   refreshUser,
 }: ReturnType<typeof useAuth>) {
   const location = useLocation();
-  const [feedbackOpen, setFeedbackOpen] = useState(false);
+  const [feedbackMode, setFeedbackMode] = useState<"logout" | "feedback" | null>(null);
+  const [feedbackSaved, setFeedbackSaved] = useState(false);
   const isPlay = location.pathname === "/play";
+
+  useEffect(() => {
+    if (!feedbackSaved) return;
+    const timeout = window.setTimeout(() => setFeedbackSaved(false), 5000);
+    return () => window.clearTimeout(timeout);
+  }, [feedbackSaved]);
 
   // Wait for /auth/me before rendering any route — prevents protected pages
   // from briefly mounting (and calling game APIs) while auth is unknown.
@@ -37,8 +44,15 @@ function AppShell({
 
   return (
     <div className={isPlay ? "app-shell app-shell--play" : "app-shell"}>
-      <Navbar user={user} onLogout={() => setFeedbackOpen(true)} hideScore={isPlay} />
-      {feedbackOpen && user && <LogoutFeedback onLogout={logout} onCancel={() => setFeedbackOpen(false)} />}
+      <Navbar user={user} onLogout={() => setFeedbackMode("logout")} onFeedback={() => {
+        setFeedbackSaved(false);
+        setFeedbackMode("feedback");
+      }} hideScore={isPlay} />
+      {feedbackMode && user && <LogoutFeedback mode={feedbackMode} onComplete={feedbackMode === "logout" ? logout : async () => {
+        setFeedbackMode(null);
+        setFeedbackSaved(true);
+      }} onCancel={() => setFeedbackMode(null)} />}
+      {feedbackSaved && <p className="feedback-confirmation" role="status">Thanks for your feedback.</p>}
       <main className={isPlay ? "main-content main-content--play" : "main-content"}>
         <Routes>
           {/* Public */}
@@ -63,7 +77,7 @@ function AppShell({
                   currentScore={user?.score ?? 0}
                   isFirstTimePlayer={user?.answers_count === 0}
                   onScoreUpdate={refreshUser}
-                  paused={feedbackOpen}
+                  paused={feedbackMode !== null}
                 />
               </RequireAuth>
             }

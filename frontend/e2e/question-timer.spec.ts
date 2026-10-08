@@ -102,7 +102,8 @@ test("Next Question click does not send the click event as a question ID", async
   expect(exclusions).toEqual([]);
 });
 
-test("pauses the question timer while logout feedback is open", async ({ page }) => {
+for (const entry of ["Logout", "Feedback"]) {
+test(`pauses the question timer while ${entry} feedback is open`, async ({ page }) => {
   const exclusions: string[] = [];
   await page.clock.install();
   await mockGame(page, 1, exclusions);
@@ -114,14 +115,15 @@ test("pauses the question timer while logout feedback is open", async ({ page })
     return Math.abs(game.top - header.bottom) < 2 && Math.abs(game.bottom - window.innerHeight) < 2;
   })).toBe(true);
   await page.clock.fastForward(10_000);
-  await page.getByRole("button", { name: "Logout", exact: true }).click();
+  await page.getByRole("button", { name: entry, exact: true }).click();
   await page.clock.fastForward(70_000);
   await expect(page.getByRole("timer")).toContainText("0:50");
   expect(exclusions).toEqual([]);
-  await page.getByRole("button", { name: "Keep playing" }).click();
+  await page.getByRole("button", { name: entry === "Logout" ? "Keep playing" : "Close", exact: true }).click();
   await page.clock.fastForward(10_000);
   await expect(page.getByRole("timer")).toContainText("0:40");
 });
+}
 
 test("loads a different question when the 60-second timer expires", async ({ page }) => {
   const exclusions: string[] = [];

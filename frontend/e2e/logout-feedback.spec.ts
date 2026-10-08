@@ -1,5 +1,105 @@
 import { expect, test } from "@playwright/test";
 
+for (const closeMethod of ["Close", "Escape"]) {
+test(`${closeMethod} during a pending navbar save does not affect a reopened form`, async ({ page }) => {
+  let releaseResponse = () => {};
+  const delayedResponse = new Promise<void>((resolve) => { releaseResponse = resolve; });
+  let markResponseHandled = () => {};
+  const responseHandled = new Promise<void>((resolve) => { markResponseHandled = resolve; });
+  const headers = {
+    "access-control-allow-origin": "http://localhost:4317",
+    "access-control-allow-credentials": "true",
+    "access-control-allow-methods": "POST, GET, OPTIONS",
+    "access-control-allow-headers": "content-type",
+  };
+  await page.route("http://localhost:8000/**", async (route) => {
+    const path = new URL(route.request().url()).pathname;
+    expect(path).not.toBe("/auth/logout");
+    if (route.request().method() === "OPTIONS") {
+      await route.fulfill({ status: 204, headers });
+    } else if (path === "/auth/me") {
+      await route.fulfill({ status: 200, headers, json: { id: "user", display_name: "Player", score: 0, answers_count: 1 } });
+    } else if (path === "/feedback") {
+      await delayedResponse;
+      try {
+        await route.fulfill({ status: 201, headers, json: {} });
+      } finally {
+        markResponseHandled();
+      }
+    }
+  });
+  await page.goto("/");
+  const open = page.getByRole("button", { name: "Feedback", exact: true });
+  await open.click();
+  await page.getByRole("radio", { name: "3 stars" }).check();
+  const requestStarted = page.waitForRequest((request) => request.method() === "POST" && request.url().endsWith("/feedback"));
+  await page.getByRole("button", { name: "Submit feedback", exact: true }).click();
+  await requestStarted;
+  await expect(page.getByRole("button", { name: "Saving…" })).toBeVisible();
+  if (closeMethod === "Close") await page.getByRole("button", { name: "Close", exact: true }).click();
+  else await page.keyboard.press("Escape");
+  await expect(open).toBeFocused();
+  await open.click();
+  releaseResponse();
+  await responseHandled;
+  await expect(page.getByRole("dialog")).toBeVisible();
+  await expect(page.getByRole("radio", { name: "3 stars" })).not.toBeChecked();
+  await expect(page.getByRole("status")).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Logout", exact: true })).toBeVisible();
+});
+}
+
+test("navbar feedback saves without logging out and can be reopened or closed", async ({ page }) => {
+  await page.clock.install();
+  await page.setViewportSize({ width: 320, height: 740 });
+  let attempts = 0;
+  await page.route("http://localhost:8000/**", async (route) => {
+    const path = new URL(route.request().url()).pathname;
+    expect(path).not.toBe("/auth/logout");
+    const headers = {
+      "access-control-allow-origin": "http://localhost:4317",
+      "access-control-allow-credentials": "true",
+      "access-control-allow-methods": "POST, GET, OPTIONS",
+      "access-control-allow-headers": "content-type",
+    };
+    if (route.request().method() === "OPTIONS") {
+      await route.fulfill({ status: 204, headers });
+    } else if (path === "/auth/me") {
+      await route.fulfill({ status: 200, headers, json: { id: "user", display_name: "Player", score: 0, answers_count: 1 } });
+    } else if (path === "/feedback") {
+      attempts++;
+      expect(route.request().postDataJSON()).toEqual({ rating: 5, comments: "Helpful map", email: null });
+      await route.fulfill({ status: attempts === 1 ? 500 : 201, headers, json: {} });
+    }
+  });
+  await page.goto("/");
+  const feedbackButton = page.getByRole("button", { name: "Feedback", exact: true });
+  await expect(feedbackButton).toBeVisible();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+  await feedbackButton.click();
+  await expect(page.getByRole("heading", { name: "Share your feedback" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Skip and log out" })).toHaveCount(0);
+  await page.getByRole("radio", { name: "5 stars" }).check();
+  await page.getByLabel("Comments (optional)").fill("Helpful map");
+  await page.getByRole("button", { name: "Submit feedback", exact: true }).click();
+  await expect(page.getByRole("alert")).toContainText("close the form");
+  await expect(page.getByLabel("Comments (optional)")).toHaveValue("Helpful map");
+  await page.getByRole("button", { name: "Submit feedback", exact: true }).click();
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+  await expect(page.getByRole("status")).toHaveText("Thanks for your feedback.");
+  await page.clock.fastForward(5100);
+  await expect(page.getByRole("status")).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Logout", exact: true })).toBeVisible();
+  await feedbackButton.click();
+  await expect(page.getByRole("radio", { name: "5 stars" })).not.toBeChecked();
+  await page.getByRole("button", { name: "Close", exact: true }).click();
+  await expect(feedbackButton).toBeFocused();
+  await feedbackButton.click();
+  await page.keyboard.press("Escape");
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+  expect(attempts).toBe(2);
+});
+
 test("logout feedback can retry without losing input, then saves and logs out", async ({ page }) => {
   let signedIn = true;
   let attempts = 0;

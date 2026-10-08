@@ -1,5 +1,11 @@
 # POI Game — Development Log
 
+## 2026-10-07 — Make feedback available during play
+
+Added Feedback beside Leaderboard for signed-in players. It reuses the existing rating, comments and optional email form without ending the session. Successful submission shows a confirmation; closing the form keeps the player signed in. The Logout entry retains its original submit-or-skip behavior. The game timer pauses for either form mode. No backend or database changes were needed.
+
+Standalone requests can be cancelled without trapping the player in a pending save. Closing restores keyboard focus and ignores late responses; the confirmation clears after five seconds. Added desktop/mobile regression checks for both entry points, retries, reopening, cancellation and timer pause/resume.
+
 ## 2026-10-07 — Simplify navigation and feedback controls
 
 Moved About, Play and Leaderboard beside the text-only POI Game brand, with account controls on the right. About reuses the same project information shown on Home. Navigation wraps on small screens, and the game fills the remaining viewport without assuming a fixed header height. Feedback actions use three distinct yellow treatments with dark text and keyboard focus, and rating stars no longer show adjacent numbers. No annotation or storage behavior changed.

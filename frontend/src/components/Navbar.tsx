@@ -5,10 +5,11 @@ import type { User } from "../lib/types";
 interface NavbarProps {
   user: User | null;
   onLogout: () => void;
+  onFeedback: () => void;
   hideScore?: boolean;
 }
 
-export function Navbar({ user, onLogout, hideScore = false }: NavbarProps) {
+export function Navbar({ user, onLogout, onFeedback, hideScore = false }: NavbarProps) {
   const avatar = user ? safeAvatarUrl(user.avatar_url) : null;
   return (
     <nav className="navbar" aria-label="Main navigation">
@@ -21,6 +22,7 @@ export function Navbar({ user, onLogout, hideScore = false }: NavbarProps) {
           {user && <>
             <Link to="/play" className="nav-link">Play</Link>
             <Link to="/leaderboard" className="nav-link">Leaderboard</Link>
+            <button type="button" className="nav-link nav-feedback" onClick={onFeedback}>Feedback</button>
           </>}
         </div>
       </div>
