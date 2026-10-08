@@ -12,6 +12,7 @@ import { useAuth } from "./hooks/useAuth";
 import { useEffect, useState } from "react";
 import { LogoutFeedback } from "./components/LogoutFeedback";
 import { AboutContent } from "./components/AboutContent";
+import { UserProfile } from "./components/UserProfile";
 
 function AppShell({
   user,
@@ -23,6 +24,7 @@ function AppShell({
   const location = useLocation();
   const [feedbackMode, setFeedbackMode] = useState<"logout" | "feedback" | null>(null);
   const [feedbackSaved, setFeedbackSaved] = useState(false);
+  const [profileOpen, setProfileOpen] = useState(false);
   const isPlay = location.pathname === "/play";
 
   useEffect(() => {
@@ -44,14 +46,22 @@ function AppShell({
 
   return (
     <div className={isPlay ? "app-shell app-shell--play" : "app-shell"}>
-      <Navbar user={user} onLogout={() => setFeedbackMode("logout")} onFeedback={() => {
+      <Navbar user={user} onLogout={() => {
+        setProfileOpen(false);
+        setFeedbackMode("logout");
+      }} onFeedback={() => {
+        setProfileOpen(false);
         setFeedbackSaved(false);
         setFeedbackMode("feedback");
+      }} onProfile={() => {
+        setFeedbackMode(null);
+        setProfileOpen(true);
       }} hideScore={isPlay} />
       {feedbackMode && user && <LogoutFeedback mode={feedbackMode} onComplete={feedbackMode === "logout" ? logout : async () => {
         setFeedbackMode(null);
         setFeedbackSaved(true);
       }} onCancel={() => setFeedbackMode(null)} />}
+      {profileOpen && user && <UserProfile user={user} onClose={() => setProfileOpen(false)} />}
       {feedbackSaved && <p className="feedback-confirmation" role="status">Thanks for your feedback.</p>}
       <main className={isPlay ? "main-content main-content--play" : "main-content"}>
         <Routes>
@@ -77,7 +87,7 @@ function AppShell({
                   currentScore={user?.score ?? 0}
                   isFirstTimePlayer={user?.answers_count === 0}
                   onScoreUpdate={refreshUser}
-                  paused={feedbackMode !== null}
+                  paused={feedbackMode !== null || profileOpen}
                 />
               </RequireAuth>
             }

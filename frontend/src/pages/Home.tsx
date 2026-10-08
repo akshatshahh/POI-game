@@ -1,5 +1,5 @@
 import { Link } from "react-router-dom";
-import { AboutContent } from "../components/AboutContent";
+import { HomeProjectSummary } from "../components/HomeProjectSummary";
 import type { User } from "../lib/types";
 
 interface HomeProps {
@@ -44,7 +44,7 @@ export function Home({ user }: HomeProps) {
           </div>
         )}
       </div>
-      <AboutContent />
+      <HomeProjectSummary />
     </div>
   );
 }

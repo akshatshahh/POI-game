@@ -45,8 +45,7 @@ async function expectBelow(upper: Locator, lower: Locator): Promise<void> {
   expect(lowerBox.y).toBeGreaterThan(upperBox.y + upperBox.height);
 }
 
-async function expectAboutContent(page: Page): Promise<void> {
-  await expect(page.getByRole("heading", { level: 2, name: "About POI Game" })).toBeVisible();
+async function expectProjectCredits(page: Page): Promise<void> {
   await expect(page.getByText("Integrated Media Systems Center", { exact: false })).toBeVisible();
   await expect(page.getByText("John Krumm", { exact: true })).toBeVisible();
   await expect(page.getByRole("link", { name: "akshatdi@usc.edu" })).toHaveAttribute(
@@ -57,33 +56,60 @@ async function expectAboutContent(page: Page): Promise<void> {
     "href",
     "mailto:hsurani@usc.edu",
   );
+}
+
+async function expectHomeProjectSummary(page: Page): Promise<void> {
+  await expect(page.getByRole("heading", { level: 2, name: "About POI Game" })).toBeVisible();
+  await expect(
+    page.getByRole("heading", { level: 3, name: "Understanding visits from GPS data" }),
+  ).toBeVisible();
+  await expect(page.getByRole("heading", { level: 3, name: "Project team" })).toBeVisible();
+  await expectProjectCredits(page);
+  await expect(page.getByRole("heading", { level: 3, name: "Feedback" })).toBeVisible();
   await expect(page.getByRole("link", { name: "Contact" })).toHaveAttribute(
     "href",
     "mailto:akshatdi@usc.edu?cc=hsurani@usc.edu&subject=POI%20Game%20Feedback",
   );
+  await expect(page.getByRole("heading", { name: "How the game works" })).toHaveCount(0);
+}
+
+async function expectAboutContent(page: Page): Promise<void> {
+  await expect(
+    page.getByRole("heading", { level: 1, name: "What is the POI Game?" }),
+  ).toBeVisible();
+  await expect(page.getByText("POI stands for", { exact: false })).toBeVisible();
+  await expect(page.getByText("Point of Interest", { exact: true }).first()).toBeVisible();
+  await expect(page.getByRole("heading", { level: 3, name: "How the game works" })).toBeVisible();
+  for (const step of ["Read the clues", "Choose likely places", "Submit and score"]) {
+    await expect(page.getByRole("heading", { level: 4, name: step })).toBeVisible();
+  }
+  await expect(page.getByRole("heading", { level: 3, name: "Why the project matters" })).toBeVisible();
+  await expectProjectCredits(page);
+  await expect(page.getByRole("heading", { level: 3, name: "Feedback" })).toHaveCount(0);
+  await expect(page.getByRole("link", { name: "Contact" })).toHaveCount(0);
   await expect(page.getByRole("link", { name: "About", exact: true })).toHaveAttribute("href", "/about");
 }
 
-test("places project information below the signed-out login prompt", async ({ page }) => {
+test("keeps the original project summary below the signed-out login prompt", async ({ page }) => {
   await mockSignedOutUser(page);
   await page.goto("/");
 
   const loginPrompt = page.locator(".hero-cta-sub");
-  const aboutContent = page.locator(".about-content");
+  const projectSummary = page.locator(".about-content");
   await expect(loginPrompt).toContainText("Already have an account?");
-  await expectAboutContent(page);
-  await expectBelow(loginPrompt, aboutContent);
+  await expectHomeProjectSummary(page);
+  await expectBelow(loginPrompt, projectSummary);
 });
 
-test("keeps project information on the signed-in home page", async ({ page }) => {
+test("keeps the original project summary on the signed-in home page", async ({ page }) => {
   await mockSignedInUser(page);
   await page.goto("/");
 
   const continueButton = page.getByRole("link", { name: "Continue Playing" });
-  const aboutContent = page.locator(".about-content");
+  const projectSummary = page.locator(".about-content");
   await expect(continueButton).toBeVisible();
-  await expectAboutContent(page);
-  await expectBelow(continueButton, aboutContent);
+  await expectHomeProjectSummary(page);
+  await expectBelow(continueButton, projectSummary);
   const leftNavigation = page.locator(".navbar-left");
   await expect(leftNavigation.getByRole("link", { name: "POI Game", exact: true })).toHaveText("POI Game");
   for (const name of ["About", "Play", "Leaderboard"]) {
@@ -100,6 +126,8 @@ test("About is available directly without signing in at narrow widths", async ({
   await mockSignedOutUser(page);
   await page.goto("/about");
   await expectAboutContent(page);
+  await page.getByText("Why isn't the nearest place always correct?", { exact: true }).click();
+  await expect(page.getByText("GPS readings can drift", { exact: false })).toBeVisible();
   await expect(page.getByRole("link", { name: "POI Game", exact: true })).toHaveText("POI Game");
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
 });
