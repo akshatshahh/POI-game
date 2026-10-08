@@ -102,8 +102,12 @@ test("Next Question click does not send the click event as a question ID", async
   expect(exclusions).toEqual([]);
 });
 
-for (const entry of ["Logout", "Feedback"]) {
-test(`pauses the question timer while ${entry} feedback is open`, async ({ page }) => {
+for (const entry of [
+  { label: "logout feedback", trigger: "Logout", close: "Keep playing" },
+  { label: "navbar feedback", trigger: "Feedback", close: "Close" },
+  { label: "the user profile", trigger: "View profile for Timer Check", close: "Done" },
+]) {
+test(`pauses the question timer while ${entry.label} is open`, async ({ page }) => {
   const exclusions: string[] = [];
   await page.clock.install();
   await mockGame(page, 1, exclusions);
@@ -115,11 +119,11 @@ test(`pauses the question timer while ${entry} feedback is open`, async ({ page 
     return Math.abs(game.top - header.bottom) < 2 && Math.abs(game.bottom - window.innerHeight) < 2;
   })).toBe(true);
   await page.clock.fastForward(10_000);
-  await page.getByRole("button", { name: entry, exact: true }).click();
+  await page.getByRole("button", { name: entry.trigger, exact: true }).click();
   await page.clock.fastForward(70_000);
   await expect(page.getByRole("timer")).toContainText("0:50");
   expect(exclusions).toEqual([]);
-  await page.getByRole("button", { name: entry === "Logout" ? "Keep playing" : "Close", exact: true }).click();
+  await page.getByRole("button", { name: entry.close, exact: true }).click();
   await page.clock.fastForward(10_000);
   await expect(page.getByRole("timer")).toContainText("0:40");
 });

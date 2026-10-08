@@ -89,10 +89,47 @@ a {
   gap: 0.75rem;
 }
 
+.user-profile-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-width: 0;
+  max-width: 15rem;
+  padding: 0.2rem;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--color-text);
+  font: inherit;
+  cursor: pointer;
+}
+
+.user-profile-trigger:hover .user-name {
+  color: var(--color-score);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.user-profile-trigger:focus-visible {
+  outline: 2px solid var(--color-score);
+  outline-offset: 3px;
+}
+
 .avatar {
   width: 32px;
   height: 32px;
   border-radius: 50%;
+  flex: 0 0 auto;
+}
+
+.avatar--fallback {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: #0e7490;
+  color: white;
+  font-size: 0.78rem;
+  font-weight: 700;
 }
 
 .user-name {
@@ -108,6 +145,160 @@ a {
   border: 1px solid var(--color-score-border);
   padding: 2px 8px;
   border-radius: 12px;
+}
+
+.user-profile-dialog {
+  width: min(560px, calc(100vw - 2rem));
+  max-height: 90dvh;
+  margin: auto;
+  overflow: auto;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  background: var(--color-surface);
+  color: var(--color-text);
+  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.5);
+}
+
+.user-profile-dialog::backdrop {
+  background: rgba(2, 6, 23, 0.72);
+}
+
+.user-profile-content {
+  display: grid;
+  gap: 1.25rem;
+  padding: 1.5rem;
+}
+
+.user-profile-header {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 1rem;
+}
+
+.user-profile-avatar {
+  width: 58px;
+  height: 58px;
+  border-radius: 50%;
+  object-fit: cover;
+}
+
+.user-profile-avatar--fallback {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: #0e7490;
+  color: white;
+  font-size: 1rem;
+  font-weight: 800;
+}
+
+.user-profile-eyebrow {
+  color: var(--color-score);
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.user-profile-header h2 {
+  overflow-wrap: anywhere;
+  font-size: 1.35rem;
+  line-height: 1.25;
+}
+
+.user-profile-handle {
+  color: var(--color-text-muted);
+  font-size: 0.86rem;
+}
+
+.user-profile-close {
+  align-self: start;
+  padding: 0.4rem 0.65rem;
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--color-text-muted);
+  font: inherit;
+  font-size: 0.78rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.user-profile-close:hover {
+  background: var(--color-surface-hover);
+  color: var(--color-text);
+}
+
+.user-profile-close:focus-visible {
+  outline: 2px solid var(--color-score);
+  outline-offset: 2px;
+}
+
+.user-profile-stats {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+
+.user-profile-stats > div {
+  display: flex;
+  min-height: 84px;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  padding: 0.75rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  background: rgba(15, 23, 42, 0.45);
+}
+
+.user-profile-stats strong {
+  color: var(--color-score);
+  font-size: 1.5rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.user-profile-stats span {
+  color: var(--color-text-muted);
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-align: center;
+}
+
+.user-profile-details {
+  border-top: 1px solid var(--color-border);
+}
+
+.user-profile-details > div {
+  display: grid;
+  grid-template-columns: 135px minmax(0, 1fr);
+  gap: 1rem;
+  padding: 0.7rem 0;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.user-profile-details dt {
+  color: var(--color-text-muted);
+  font-size: 0.78rem;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.user-profile-details dd {
+  overflow-wrap: anywhere;
+  color: var(--color-text);
+}
+
+.user-profile-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.user-profile-footer p {
+  color: var(--color-text-muted);
+  font-size: 0.8rem;
 }
 
 /* Buttons */
@@ -215,11 +406,16 @@ a {
 
 /* About content on the home page */
 .about-content {
-  max-width: 860px;
+  max-width: 920px;
   margin: 0 auto;
   padding: 2.5rem 0 3rem;
   border-top: 1px solid var(--color-border);
   text-align: left;
+}
+
+.about-content--page {
+  padding-top: 0.75rem;
+  border-top: 0;
 }
 
 .about-header {
@@ -236,6 +432,7 @@ a {
   text-transform: uppercase;
 }
 
+.about-header h1,
 .about-header h2 {
   margin-bottom: 0.75rem;
   font-size: 2.25rem;
@@ -247,6 +444,38 @@ a {
   color: var(--color-text-muted);
   font-size: 1.1rem;
   line-height: 1.8;
+}
+
+.about-lead strong {
+  color: var(--color-text);
+}
+
+.about-definition {
+  display: grid;
+  grid-template-columns: 84px minmax(0, 1fr);
+  align-items: center;
+  gap: 1rem;
+  margin-top: 1.5rem;
+  padding: 1rem;
+  border: 1px solid var(--color-score-border);
+  border-radius: var(--radius);
+  background: var(--color-score-bg);
+}
+
+.about-definition > span {
+  color: var(--color-score);
+  font-size: 1.45rem;
+  font-weight: 800;
+  text-align: center;
+}
+
+.about-definition strong {
+  color: var(--color-text);
+}
+
+.about-definition p {
+  color: var(--color-text-muted);
+  font-size: 0.9rem;
 }
 
 .about-section {
@@ -271,9 +500,84 @@ a {
   margin-top: 1rem;
 }
 
+.about-steps {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.75rem;
+  margin-top: 1.25rem;
+  list-style: none;
+}
+
+.about-steps li {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  min-height: 142px;
+  padding: 1rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  background: var(--color-surface);
+}
+
+.about-step-number {
+  display: inline-flex;
+  width: 30px;
+  height: 30px;
+  flex: 0 0 30px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: #0e7490;
+  color: white;
+  font-size: 0.82rem;
+  font-weight: 800;
+}
+
+.about-steps h4 {
+  margin-bottom: 0.35rem;
+  color: var(--color-text);
+  font-size: 0.95rem;
+}
+
+.about-steps p {
+  color: var(--color-text-muted);
+  font-size: 0.86rem;
+  line-height: 1.55;
+}
+
+.about-questions {
+  margin-top: 1.5rem;
+  border-top: 1px solid var(--color-border);
+}
+
+.about-questions details {
+  padding: 0.9rem 0;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.about-questions summary {
+  color: var(--color-text);
+  font-weight: 650;
+  cursor: pointer;
+}
+
+.about-questions summary::marker {
+  color: var(--color-score);
+}
+
+.about-questions details[open] summary {
+  color: var(--color-score);
+}
+
+.about-questions details p {
+  margin-top: 0.65rem;
+  padding-left: 1.1rem;
+}
+
 .about-credits {
   display: grid;
   gap: 1.25rem;
+  margin-top: 1.5rem;
 }
 
 .about-credits > div {
@@ -1270,6 +1574,10 @@ a {
     display: none;
   }
 
+  .user-profile-trigger {
+    padding: 0;
+  }
+
   .nav-link {
     font-size: 0.8rem;
   }
@@ -1282,6 +1590,7 @@ a {
     padding-bottom: 1.5rem;
   }
 
+  .about-header h1,
   .about-header h2 {
     font-size: 1.8rem;
   }
@@ -1292,6 +1601,23 @@ a {
 
   .about-section {
     padding: 1.5rem 0;
+  }
+
+  .about-definition {
+    grid-template-columns: 64px minmax(0, 1fr);
+    padding: 0.8rem;
+  }
+
+  .about-definition > span {
+    font-size: 1.15rem;
+  }
+
+  .about-steps {
+    grid-template-columns: 1fr;
+  }
+
+  .about-steps li {
+    min-height: 0;
   }
 
   .about-credits > div {
@@ -1306,6 +1632,39 @@ a {
   }
 
   .about-contact .btn {
+    width: 100%;
+  }
+
+  .user-profile-dialog {
+    width: calc(100vw - 1rem);
+    max-height: calc(100dvh - 1rem);
+  }
+
+  .user-profile-content {
+    padding: 1rem;
+  }
+
+  .user-profile-header {
+    grid-template-columns: auto minmax(0, 1fr);
+    gap: 0.75rem;
+  }
+
+  .user-profile-close {
+    grid-column: 1 / -1;
+    width: 100%;
+  }
+
+  .user-profile-details > div {
+    grid-template-columns: 1fr;
+    gap: 0.15rem;
+  }
+
+  .user-profile-footer {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .user-profile-footer .btn {
     width: 100%;
   }
 }

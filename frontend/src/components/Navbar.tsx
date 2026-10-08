@@ -1,16 +1,16 @@
 import { Link } from "react-router-dom";
-import { safeAvatarUrl } from "../lib/api";
 import type { User } from "../lib/types";
+import { UserAvatar } from "./UserAvatar";
 
 interface NavbarProps {
   user: User | null;
   onLogout: () => void;
   onFeedback: () => void;
+  onProfile: () => void;
   hideScore?: boolean;
 }
 
-export function Navbar({ user, onLogout, onFeedback, hideScore = false }: NavbarProps) {
-  const avatar = user ? safeAvatarUrl(user.avatar_url) : null;
+export function Navbar({ user, onLogout, onFeedback, onProfile, hideScore = false }: NavbarProps) {
   return (
     <nav className="navbar" aria-label="Main navigation">
       <div className="navbar-left">
@@ -28,15 +28,21 @@ export function Navbar({ user, onLogout, onFeedback, hideScore = false }: Navbar
       </div>
         {user ? (
             <div className="navbar-user">
-              {avatar && (
-                <img
-                  src={avatar}
-                  alt=""
+              <button
+                type="button"
+                className="user-profile-trigger"
+                onClick={onProfile}
+                aria-label={`View profile for ${user.display_name}`}
+                aria-haspopup="dialog"
+              >
+                <UserAvatar
+                  name={user.display_name}
+                  url={user.avatar_url}
                   className="avatar"
-                  referrerPolicy="no-referrer"
+                  fallbackClassName="avatar--fallback"
                 />
-              )}
-              <span className="user-name">{user.display_name}</span>
+                <span className="user-name">{user.display_name}</span>
+              </button>
               {!hideScore && <span className="user-score">{user.score} pts</span>}
               <button onClick={onLogout} className="btn btn-sm btn-outline">
                 Logout
