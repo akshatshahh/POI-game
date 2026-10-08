@@ -22,6 +22,16 @@ test("logout feedback can retry without losing input, then saves and logs out", 
   await page.goto("/");
   await page.getByRole("button", { name: "Logout", exact: true }).click();
   await expect(page.getByRole("dialog")).toBeVisible();
+  await expect(page.getByText("1 = least liked · 5 = best")).toBeVisible();
+  await expect(page.getByLabel("Comments (optional)")).toHaveAttribute("placeholder", /feedback or questions/);
+  const bounds = await page.getByRole("dialog").boundingBox();
+  const viewport = page.viewportSize();
+  expect(bounds).not.toBeNull();
+  expect(viewport).not.toBeNull();
+  if (bounds && viewport) {
+    expect(Math.abs(bounds.x + bounds.width / 2 - viewport.width / 2)).toBeLessThan(2);
+    expect(Math.abs(bounds.y + bounds.height / 2 - viewport.height / 2)).toBeLessThan(2);
+  }
   await page.getByRole("radio", { name: "4 stars" }).check();
   await page.getByLabel("Comments (optional)").fill("Unclear choices");
   await page.getByRole("button", { name: "Submit feedback and log out" }).click();

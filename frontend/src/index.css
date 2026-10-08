@@ -2293,13 +2293,13 @@ a {
   }
 }
 /* Logout feedback stays within the viewport on small screens. */
-.logout-feedback { width: min(520px, calc(100vw - 32px)); max-height: 90dvh; overflow: auto; border: 0; border-radius: 16px; padding: 24px; color: #172033; background: white; }
+.logout-feedback { margin: auto; width: min(520px, calc(100vw - 32px)); max-height: 90dvh; overflow: auto; border: 0; border-radius: 16px; padding: 24px; color: #172033; background: white; text-align: center; }
 .logout-feedback::backdrop { background: rgb(0 0 0 / 55%); }
 .logout-feedback form { display: grid; gap: 12px; }
 .logout-feedback p { margin: 0; font-size: 0.9rem; }
 .logout-feedback input[type="email"], .logout-feedback textarea { width: 100%; box-sizing: border-box; border: 1px solid #9ca3af; border-radius: 6px; padding: 10px; font: inherit; }
-.feedback-stars { display: flex; gap: 12px; border: 0; padding: 0; }
+.feedback-stars { display: flex; justify-content: center; gap: 12px; border: 0; padding: 0; }
 .feedback-stars label { display: flex; align-items: center; gap: 4px; cursor: pointer; }
 .feedback-stars label:has(input:checked) { color: #9a6500; font-weight: bold; }
-.feedback-actions { display: flex; flex-wrap: wrap; gap: 10px; }
+.feedback-actions { display: flex; justify-content: center; flex-wrap: wrap; gap: 10px; }
 .feedback-actions button { padding: 10px 12px; border-radius: 6px; cursor: pointer; }

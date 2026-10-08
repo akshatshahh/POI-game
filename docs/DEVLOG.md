@@ -1,5 +1,9 @@
 # POI Game — Development Log
 
+## 2026-10-07 — Make logout feedback shorter and clearer
+
+Centered the feedback dialog, rating choices and buttons. Explained that 1 is least liked and 5 is best. Moved the comments guidance into the text box as a placeholder while retaining its label and accessible description. Added desktop/mobile checks for the scale, hint and dialog position. No storage or consensus rules changed.
+
 ## 2026-10-07 — Ask for optional feedback at logout
 
 Added a logout dialog with a five-star rating, optional comments and optional reply email. Players can submit, skip, or keep playing; a failed save retains the form and allows retry or logout. Feedback lives in a separate Postgres table with administrator-only reading and is never joined into research-label exports. Apply the new Alembic migration before deployment.

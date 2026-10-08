@@ -58,7 +58,7 @@ export function LogoutFeedback({ onLogout, onCancel }: Props) {
       <form onSubmit={submit}>
         <h2 id="feedback-title">Before you go</h2>
         <p>How was your experience? Feedback is optional.</p>
-        <fieldset className="feedback-stars">
+        <fieldset className="feedback-stars" aria-describedby="feedback-scale">
           <legend>Rate your experience (1–5 stars)</legend>
           {[1, 2, 3, 4, 5].map((rating) => (
             <label key={rating}>
@@ -67,9 +67,11 @@ export function LogoutFeedback({ onLogout, onCancel }: Props) {
             </label>
           ))}
         </fieldset>
+        <p id="feedback-scale">1 = least liked · 5 = best</p>
         <label htmlFor="feedback-comments">Comments (optional)</label>
-        <p id="feedback-help">You can write any feedback or questions, tell us what you could not understand on the page, or report any errors.</p>
-        <textarea id="feedback-comments" name="comments" maxLength={4000} rows={4} aria-describedby="feedback-help" />
+        <textarea id="feedback-comments" name="comments" maxLength={4000} rows={4}
+          placeholder="You can write any feedback or questions, tell us what you could not understand on the page, or report any errors."
+          aria-description="Share feedback, questions, anything unclear on the page, or errors you encountered." />
         <label htmlFor="feedback-email">Email (optional)</label>
         <input id="feedback-email" name="email" type="email" maxLength={320} autoComplete="email" />
         <p>Only project administrators can read this feedback. Email is only needed if you want a reply. Feedback is not included in research-label exports.</p>
