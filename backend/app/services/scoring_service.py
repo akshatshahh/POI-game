@@ -1,43 +1,38 @@
-"""Scoring and consensus logic.
+"""Scoring and agreement tracking.
 
 Scoring:
-  Base points (5)      — for every answer, immediately (rewards participation)
-  Consensus bonus (10) — paid ONCE, when the question locks, to everyone who
-                         picked the winning POI
-  Difficulty bonus (5) — added to the consensus bonus on questions that
-                         needed the escalated annotation target
+  Base points (5) — for every answer, immediately (rewards participation)
 
-Nothing is paid before lock, so scores never go down.
+Distance is recorded as an ML covariate but never scored. Nothing is paid
+at lock: average pairwise Jaccard measures agreement between sets, and it
+does not name a winning place, so there is no consensus bonus.
 
-Consensus (per question):
-  1. Collect at least MIN_VOTES_FOR_CONSENSUS independent answers.
-  2. The leading POI wins when it has >= MAJORITY_FRACTION of votes AND a
-     lead of >= MIN_VOTE_LEAD over the runner-up. A 2-2 tie can never pass,
-     so ties resolve themselves by collecting more votes.
-  3. If the base target is reached without consensus (or the area is dense),
-     the target escalates to settings.consensus_max_target.
-  4. At the escalated target the decision is final either way:
-     status becomes consensus_reached or no_consensus and the question locks.
-  Locked labels are immutable; exports are reproducible.
+Agreement and sampling (per question):
+  1. Each eligible answer is a set of POI ids (selected_poi_ids, with a
+     fallback to the stored primary id).
+  2. Pairwise Jaccard is |A∩B| / |A∪B|. The question score is the mean
+     over all n(n−1)/2 unordered pairs (undefined when n < 2).
+  3. Every question collects at least CONSENSUS_MIN_ANSWERS (5) eligible
+     responses. While any open question is below that floor, those are
+     served first.
+  4. After every open question has at least 5, more responses go to the
+     lowest average Jaccard among questions with 5–9.
+  5. At CONSENSUS_MAX_ANSWERS (10) the question is complete regardless of
+     Jaccard. It locks as no_consensus with no named place and is not
+     presented again. Locked rows are immutable.
 """
 
 import datetime
 import uuid
-from collections import defaultdict
+from itertools import combinations
 
-from sqlalchemy import func, select
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
 from app.models import Answer, Question, User
 
 BASE_POINTS = 5
-CONSENSUS_BONUS = 10
-DIFFICULTY_BONUS = 5
-
-MIN_VOTES_FOR_CONSENSUS = 3
-MAJORITY_FRACTION = 0.6
-MIN_VOTE_LEAD = 2
 
 STATUS_ACTIVE = "active"
 STATUS_CONSENSUS = "consensus_reached"
@@ -60,105 +55,100 @@ def apply_initial_score(answer: Answer, distance_meters: float | None) -> int:
     return answer.score_awarded
 
 
-async def _eligible_vote_counts(
-    db: AsyncSession, question_id: uuid.UUID
-) -> list[tuple[str, int]]:
-    """Vote counts per POI, descending, counting only Sybil-gated users."""
-    stmt = (
-        select(Answer.selected_poi_id, func.count(Answer.id).label("cnt"))
-        .where(Answer.question_id == question_id)
-        .group_by(Answer.selected_poi_id)
-        .order_by(func.count(Answer.id).desc())
-    )
-    if settings.consensus_min_account_age_minutes > 0:
-        cutoff = datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(
-            minutes=settings.consensus_min_account_age_minutes
-        )
-        stmt = (
-            select(Answer.selected_poi_id, func.count(Answer.id).label("cnt"))
-            .join(User, User.id == Answer.user_id)
-            .where(Answer.question_id == question_id, User.created_at <= cutoff)
-            .group_by(Answer.selected_poi_id)
-            .order_by(func.count(Answer.id).desc())
-        )
-    result = await db.execute(stmt)
-    return [(row.selected_poi_id, row.cnt) for row in result.all()]
-
-
-def _has_consensus(counts: list[tuple[str, int]]) -> tuple[str, float] | None:
-    """Return (winning_poi_id, confidence) if the consensus condition holds."""
-    total = sum(cnt for _, cnt in counts)
-    if total < MIN_VOTES_FOR_CONSENSUS:
-        return None
-    top_votes = counts[0][1]
-    second_votes = counts[1][1] if len(counts) > 1 else 0
-    if top_votes / total >= MAJORITY_FRACTION and top_votes - second_votes >= MIN_VOTE_LEAD:
-        return counts[0][0], top_votes / total
+def answer_selection_set(answer: Answer) -> set[str] | None:
+    """POI ids this answer counts as, or None if the row has no usable set."""
+    raw_ids = answer.selected_poi_ids
+    if raw_ids:
+        values = {str(item) for item in raw_ids if item}
+        if values:
+            return values
+    if answer.selected_poi_id:
+        return {str(answer.selected_poi_id)}
     return None
 
 
-async def _pay_consensus_bonus(db: AsyncSession, question: Question) -> None:
-    """Pay the lock-time bonus to every answer matching the winning POI."""
-    bonus = CONSENSUS_BONUS
-    if question.answers_target > settings.consensus_base_target:
-        bonus += DIFFICULTY_BONUS
+def mean_pairwise_jaccard(sets: list[set[str]]) -> float | None:
+    """Mean Jaccard similarity over all unordered pairs.
 
-    result = await db.execute(
-        select(Answer).where(
-            Answer.question_id == question.id,
-            Answer.selected_poi_id == question.consensus_poi_id,
-        )
+    Returns None when there are fewer than two sets, or when every pair
+    has an empty union (empty sets are a data error; the API rejects them).
+    Identical non-empty sets score 1.0; disjoint sets score 0.0.
+    """
+    if len(sets) < 2:
+        return None
+    total = 0.0
+    pairs = 0
+    for left, right in combinations(sets, 2):
+        union = left | right
+        if not union:
+            continue
+        total += len(left & right) / len(union)
+        pairs += 1
+    if pairs == 0:
+        return None
+    return total / pairs
+
+
+def _sybil_cutoff() -> datetime.datetime | None:
+    minutes = settings.consensus_min_account_age_minutes
+    if minutes <= 0:
+        return None
+    return datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(
+        minutes=minutes
     )
-    matching = result.scalars().all()
 
-    score_diffs: dict[uuid.UUID, int] = defaultdict(int)
-    for answer in matching:
-        answer.consensus_bonus = bonus
-        answer.score_awarded = answer.base_points + bonus
-        score_diffs[answer.user_id] += bonus
 
-    if score_diffs:
-        users_result = await db.execute(select(User).where(User.id.in_(score_diffs.keys())))
-        for user in users_result.scalars():
-            user.score += score_diffs[user.id]
+async def eligible_selection_sets_by_question(
+    db: AsyncSession, question_ids: list[uuid.UUID]
+) -> dict[uuid.UUID, list[set[str]]]:
+    """Sybil-gated selection sets for each question, keyed by question id."""
+    grouped: dict[uuid.UUID, list[set[str]]] = {qid: [] for qid in question_ids}
+    if not question_ids:
+        return grouped
+
+    stmt = select(Answer).where(Answer.question_id.in_(question_ids))
+    cutoff = _sybil_cutoff()
+    if cutoff is not None:
+        stmt = (
+            select(Answer)
+            .join(User, User.id == Answer.user_id)
+            .where(Answer.question_id.in_(question_ids), User.created_at <= cutoff)
+        )
+    result = await db.execute(stmt)
+    for answer in result.scalars():
+        selection = answer_selection_set(answer)
+        if selection:
+            grouped[answer.question_id].append(selection)
+    return grouped
+
+
+async def eligible_selection_sets(
+    db: AsyncSession, question_id: uuid.UUID
+) -> list[set[str]]:
+    grouped = await eligible_selection_sets_by_question(db, [question_id])
+    return grouped.get(question_id, [])
 
 
 async def evaluate_consensus(db: AsyncSession, question: Question) -> None:
-    """Re-evaluate a question's consensus state after a new answer.
+    """Update agreement stats after a new answer and lock at the cap.
 
-    Escalates the annotation target on disagreement, and locks the question
-    (terminal status + payout) once the evidence is decisive or exhausted.
+    Jaccard does not elect a place, so a completed question is stored as
+    no_consensus with a null consensus_poi_id. consensus_confidence is the
+    mean pairwise Jaccard (None until there are two eligible sets).
     """
     if question.locked_at is not None:
         return
 
-    counts = await _eligible_vote_counts(db, question.id)
-    total_votes = sum(cnt for _, cnt in counts)
-    question.votes_total = total_votes
+    sets = await eligible_selection_sets(db, question.id)
+    n = len(sets)
+    question.votes_total = n
+    question.answers_target = settings.consensus_max_answers
+    jaccard = mean_pairwise_jaccard(sets)
+    question.consensus_confidence = None if jaccard is None else round(jaccard, 4)
 
-    consensus = _has_consensus(counts)
-    if consensus is not None:
-        poi_id, confidence = consensus
-        question.status = STATUS_CONSENSUS
-        question.consensus_poi_id = poi_id
-        question.consensus_confidence = round(confidence, 4)
+    if n >= question.answers_target:
+        question.status = STATUS_NO_CONSENSUS
+        question.consensus_poi_id = None
         question.locked_at = datetime.datetime.now(datetime.timezone.utc)
-        await _pay_consensus_bonus(db, question)
-        await db.flush()
-        return
-
-    if total_votes >= question.answers_target:
-        if question.answers_target < settings.consensus_max_target:
-            # Annotators disagree at the base target: collect more evidence
-            # before finalizing.
-            question.answers_target = settings.consensus_max_target
-        else:
-            # Evidence exhausted without agreement — a documented ambiguous
-            # point. No bonus is paid; the label exports as no_consensus.
-            question.status = STATUS_NO_CONSENSUS
-            question.consensus_confidence = (
-                round(counts[0][1] / total_votes, 4) if counts else None
-            )
-            question.locked_at = datetime.datetime.now(datetime.timezone.utc)
 
     await db.flush()

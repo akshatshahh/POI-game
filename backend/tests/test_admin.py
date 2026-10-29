@@ -53,6 +53,50 @@ async def test_export_labels_empty(client: AsyncClient, admin_user: User) -> Non
 
 
 @pytest.mark.asyncio
+async def test_export_labels_includes_selected_poi_ids(
+    client: AsyncClient, admin_user: User, db_session
+) -> None:
+    from app.models import Answer, GpsPoint, Question
+
+    gps = GpsPoint(lat=34.0, lon=-118.0)
+    db_session.add(gps)
+    await db_session.flush()
+    question = Question(
+        gps_point_id=gps.id,
+        status="active",
+        candidates=[
+            {"id": "poi-a", "name": "A", "category": "cafe", "lat": 34.0, "lon": -118.0},
+            {"id": "poi-b", "name": "B", "category": "bar", "lat": 34.0, "lon": -118.0},
+        ],
+        candidate_density=2,
+        answers_target=10,
+    )
+    db_session.add(question)
+    await db_session.flush()
+    db_session.add(Answer(
+        question_id=question.id,
+        user_id=admin_user.id,
+        selected_poi_id="poi-b",
+        selected_poi_ids=["poi-b", "poi-a"],
+        displayed_poi_ids=["poi-a", "poi-b"],
+    ))
+    await db_session.commit()
+
+    response = await client.get(
+        "/admin/export/labels?format=json",
+        headers=auth_headers(admin_user),
+    )
+    assert response.status_code == 200
+    records = response.json()
+    assert len(records) == 1
+    assert records[0]["selected_poi_id"] == "poi-b"
+    assert records[0]["selected_poi_ids"] == ["poi-b", "poi-a"]
+    assert records[0]["displayed_poi_ids"] == ["poi-a", "poi-b"]
+    assert [c["id"] for c in records[0]["candidates"]] == ["poi-a", "poi-b"]
+    assert records[0]["candidates"][0]["name"] == "A"
+
+
+@pytest.mark.asyncio
 async def test_export_consensus_includes_question_state(
     client: AsyncClient, admin_user: User, db_session
 ) -> None:
@@ -64,8 +108,11 @@ async def test_export_consensus_includes_question_state(
     db_session.add(Question(
         gps_point_id=gps.id,
         status="active",
+        candidates=[
+            {"id": "poi-a", "name": "A", "category": "cafe", "lat": 34.0, "lon": -118.0},
+        ],
         candidate_density=4,
-        answers_target=3,
+        answers_target=10,
     ))
     await db_session.commit()
 
@@ -80,5 +127,61 @@ async def test_export_consensus_includes_question_state(
     assert record["status"] == "active"
     assert record["consensus_poi_id"] is None
     assert record["candidate_density"] == 4
-    assert record["answers_target"] == 3
+    assert record["answers_target"] == 10
     assert record["vote_distribution"] == {}
+    assert record["candidates"][0]["id"] == "poi-a"
+    assert record["candidates"][0]["name"] == "A"
+    assert record["displayed_poi_ids"] == []
+
+
+@pytest.mark.asyncio
+async def test_export_consensus_includes_each_answers_displayed_list(
+    client: AsyncClient, admin_user: User, db_session
+) -> None:
+    from app.models import Answer, GpsPoint, Question, User
+
+    gps = GpsPoint(lat=34.0, lon=-118.0)
+    db_session.add(gps)
+    await db_session.flush()
+    question = Question(
+        gps_point_id=gps.id,
+        status="active",
+        candidates=[
+            {"id": "poi-a", "name": "A", "category": "cafe", "lat": 34.0, "lon": -118.0},
+            {"id": "poi-b", "name": "B", "category": "bar", "lat": 34.0, "lon": -118.0},
+        ],
+        candidate_density=2,
+        answers_target=10,
+    )
+    db_session.add(question)
+    await db_session.flush()
+    other = User(
+        email="other-export@example.com",
+        display_name="Other",
+    )
+    db_session.add(other)
+    await db_session.flush()
+    db_session.add(Answer(
+        question_id=question.id,
+        user_id=admin_user.id,
+        selected_poi_id="poi-a",
+        selected_poi_ids=["poi-a"],
+        displayed_poi_ids=["poi-a", "poi-b"],
+    ))
+    db_session.add(Answer(
+        question_id=question.id,
+        user_id=other.id,
+        selected_poi_id="poi-b",
+        selected_poi_ids=["poi-b"],
+        displayed_poi_ids=["poi-b"],
+    ))
+    await db_session.commit()
+
+    response = await client.get(
+        "/admin/export/consensus?format=json",
+        headers=auth_headers(admin_user),
+    )
+    assert response.status_code == 200
+    record = response.json()[0]
+    assert record["displayed_poi_ids"] == [["poi-a", "poi-b"], ["poi-b"]]
+    assert [c["id"] for c in record["candidates"]] == ["poi-a", "poi-b"]

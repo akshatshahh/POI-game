@@ -143,13 +143,38 @@ class NextQuestionResponse(BaseModel):
 class AnswerRequest(BaseModel):
     question_id: uuid.UUID
     selected_poi_ids: list[str] = Field(..., min_length=1)
+    # Ordered ids shown on this question. Optional so an older client can
+    # omit it; the server then recomputes the current slice.
+    displayed_poi_ids: list[str] | None = None
 
     @field_validator("selected_poi_ids")
     @classmethod
     def validate_poi_ids(cls, v: list[str]) -> list[str]:
+        from app.config import settings
+
         cleaned = list(dict.fromkeys(s.strip() for s in v if s.strip()))
         if not cleaned:
             raise ValueError("At least one POI must be selected")
+        if len(cleaned) > settings.poi_max_candidates:
+            raise ValueError(
+                f"At most {settings.poi_max_candidates} places can be selected"
+            )
+        return cleaned
+
+    @field_validator("displayed_poi_ids")
+    @classmethod
+    def validate_displayed_poi_ids(cls, v: list[str] | None) -> list[str] | None:
+        from app.config import settings
+
+        if v is None:
+            return None
+        cleaned = list(dict.fromkeys(s.strip() for s in v if s.strip()))
+        if not cleaned:
+            return None
+        if len(cleaned) > settings.poi_max_candidates:
+            raise ValueError(
+                f"At most {settings.poi_max_candidates} places can be shown"
+            )
         return cleaned
 
 

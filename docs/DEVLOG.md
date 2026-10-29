@@ -1,5 +1,21 @@
 # POI Game — Development Log
 
+## 2026-10-28 — Record the places each player actually saw
+
+Each answer now stores the ordered list of places shown on that question, at most eight. The labels export includes that list and the question's frozen nearby-place set. The consensus export includes the frozen set and every answer's displayed list. Older answers leave the displayed list unset. Players still pick from the same map; the extra field is not shown on screen.
+
+## 2026-10-28 — Store the ten-response completion cap on questions
+
+Every question now records `answers_target = 10` in the database, matching the rule that a visit is complete after ten eligible answers. Open questions are updated to 10; already-locked rows keep the target they were collected under. Routing still fills questions to five first, then sends more people to the lowest Jaccard score, and stops presenting a question at ten.
+
+## 2026-10-28 — Measure agreement with average pairwise Jaccard
+
+Each answer is a set of places. Agreement is the mean Jaccard similarity of every pair of sets. Questions fill to five eligible answers, then more people are sent to the lowest-agreement questions until ten, when the question is complete. Jaccard does not name a winning place, so completed questions store the score and leave the place id empty. Players still get five points immediately; the old first-pick lock and consensus bonus are gone.
+
+## 2026-10-28 — Include every chosen place in the labels export
+
+Players already pick more than one place, and answers already store that list. The labels export now includes `selected_poi_ids` so the full set can be downloaded. A submit is limited to eight places, matching the number shown on a question. Consensus still uses the first pick only until a later formula change.
+
 ## 2026-10-07 — Fill rating stars up to the selected value
 
 Feedback now fills all stars up to the chosen rating and outlines the remaining stars. Selecting a lower rating clears the extra filled stars. Native radio controls, keyboard navigation and the single saved rating remain unchanged. Added browser checks for increasing and decreasing ratings and keyboard selection.
@@ -13,6 +29,10 @@ Standalone requests can be cancelled without trapping the player in a pending sa
 ## 2026-10-07 — Simplify navigation and feedback controls
 
 Moved About, Play and Leaderboard beside the text-only POI Game brand, with account controls on the right. About reuses the same project information shown on Home. Navigation wraps on small screens, and the game fills the remaining viewport without assuming a fixed header height. Feedback actions use three distinct yellow treatments with dark text and keyboard focus, and rating stars no longer show adjacent numbers. No annotation or storage behavior changed.
+
+## 2026-10-07 — Clarify review responsibilities
+
+Updated the local working handbook to require independent product, engineering, QA, data/research and delivery reviews, with additional statistical review for formula changes. Kept approval boundaries and private notes local. No application behavior changed.
 
 ## 2026-10-07 — Make logout feedback shorter and clearer
 
@@ -29,6 +49,26 @@ The question timer pauses while the dialog is open. Verified 45 backend tests, f
 Wrapped the Next Question callback so a button click cannot pass its event as an excluded question ID. Previously the browser sent `exclude_question_id=[object Object]`, which the backend correctly rejected with 422. Timer-based skipping still passes the actual question ID.
 
 Verified with 36 backend tests and 18 desktop/mobile browser tests, including a submit-then-next regression check. Frontend typechecking, lint, and the production build passed. Automated checks now also run lint, build, and the browser suite.
+
+## 2026-10-07 — Use the latest home-page update
+
+Removed the uncommitted About and Feedback implementation at the owner's request and pulled the latest home-page project-information change from the remote branch. Preserved earlier local notes and documents; saved the removed work in a temporary backup.
+
+## 2026-10-07 — Reviewed recent gameplay and multi-select changes
+
+Checked the current commits, answer storage, consensus, exports, question selection, and frontend flow. Recorded unresolved multi-select counting, export completeness, candidate filtering, concurrency, and browser-test coverage problems in the local issues list. Backend tests passed (36 tests), and the frontend typecheck passed. Browser tests could not run because the local Playwright executable was unavailable. No gameplay rules were changed.
+
+## 2026-09-25 — Private notes stay local
+
+**What:** `AGENTS.md`, `RULES.md`, and `ISSUES.md` are notes for the owner only. They are not committed and they are not pushed to `main`.
+
+## 2026-09-25 — Issues list and change log
+
+**What:** The handbook now says how later work is written down.
+
+- The engineering manager adds a problem to `ISSUES.md` when it is seen but not fixed in the same step.
+- Every change, including a small one, gets a short entry at the top of this file so a new person can see what changed and why.
+- Older work that was never written here stays in git history.
 
 ## 2026-03-09 — `chore/init-repo-structure`
 

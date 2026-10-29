@@ -98,13 +98,13 @@ class Question(Base):
     # Number of POIs within the search radius; a difficulty proxy exported
     # with every label (dense areas are harder to annotate).
     candidate_density: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
-    # How many independent answers this question collects before a consensus
-    # decision is final. Starts at the base target; escalates when annotators
-    # disagree or the area is dense.
-    answers_target: Mapped[int] = mapped_column(Integer, default=3, server_default="3")
+    # Completion cap: stop collecting (and stop presenting) at this many
+    # eligible responses. The Jaccard sampling policy uses 10.
+    answers_target: Mapped[int] = mapped_column(Integer, default=10, server_default="10")
     votes_total: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
     consensus_poi_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
-    # Fraction of votes on the winning POI at lock time (top_votes / total).
+    # Mean pairwise Jaccard of eligible answer sets. None until two sets exist.
+    # Jaccard does not name a winning place, so consensus_poi_id stays empty.
     consensus_confidence: Mapped[float | None] = mapped_column(Float, nullable=True)
     locked_at: Mapped[datetime.datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
@@ -133,6 +133,11 @@ class Answer(Base):
     selected_poi_id: Mapped[str] = mapped_column(String(255), nullable=False)
     # All POIs the user considers likely; selected_poi_id is the first (primary).
     selected_poi_ids: Mapped[list | None] = mapped_column(
+        JSON().with_variant(JSONB, "postgresql"), nullable=True
+    )
+    # Ordered place ids actually shown to this player (at most 8). Null on
+    # answers collected before the snapshot was stored.
+    displayed_poi_ids: Mapped[list | None] = mapped_column(
         JSON().with_variant(JSONB, "postgresql"), nullable=True
     )
     # Distance from the GPS point to the selected POI, kept as an ML covariate

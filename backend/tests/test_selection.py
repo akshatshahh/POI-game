@@ -1,5 +1,6 @@
-"""Tests for question selection: completion-first order and terminal exclusion."""
+"""Tests for question selection: fill-to-5, then lowest Jaccard, stop at 10."""
 
+import datetime
 import uuid
 
 import pytest
@@ -7,6 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models import Answer, GpsPoint, Question, User
 from app.services import question_service
+from app.services.scoring_service import apply_initial_score
 
 # Inside the LA study-area bbox used by app.regions.
 LA_LAT, LA_LON = 34.02, -118.28
@@ -41,7 +43,7 @@ async def _make_point_with_question(
         status="active",
         candidates=list(FAKE_POIS),
         candidate_density=len(FAKE_POIS),
-        answers_target=3,
+        answers_target=10,
     )
     db.add(question)
     await db.flush()
@@ -116,3 +118,114 @@ async def test_displayed_candidates_come_from_frozen_set(db_session, monkeypatch
     frozen_ids = {c["id"] for c in question.candidates}
     assert shown_ids <= frozen_ids
     assert len(shown_ids) >= question_service.MIN_CANDIDATES
+
+
+async def _add_answers(
+    db: AsyncSession, question: Question, poi_ids_list: list[list[str]]
+) -> None:
+    for index, poi_ids in enumerate(poi_ids_list):
+        user = await _make_user(db, f"{question.h3_cell}-{index}")
+        answer = Answer(
+            question_id=question.id,
+            user_id=user.id,
+            selected_poi_id=poi_ids[0],
+            selected_poi_ids=list(poi_ids),
+        )
+        apply_initial_score(answer, distance_meters=10.0)
+        db.add(answer)
+    await db.flush()
+
+
+@pytest.mark.asyncio
+async def test_questions_under_five_answers_are_served_before_higher_jaccard_gaps(
+    db_session, monkeypatch
+) -> None:
+    """A 2-answer question must fill before a 7-answer question gets more people."""
+    monkeypatch.setattr(question_service, "get_nearby_pois", _fake_nearby)
+
+    _, q_few = await _make_point_with_question(db_session, "89a-cell-few")
+    _, q_many = await _make_point_with_question(db_session, "89a-cell-many")
+    await _add_answers(db_session, q_few, [["poi-a"], ["poi-a"]])
+    await _add_answers(db_session, q_many, [["poi-a"]] * 7)
+
+    newcomer = await _make_user(db_session, "newcomer")
+    result = await question_service.get_next_question(db_session, newcomer.id)
+
+    assert result is not None
+    assert result["question_id"] == str(q_few.id)
+
+
+@pytest.mark.asyncio
+async def test_lowest_jaccard_is_served_once_every_question_has_five(
+    db_session, monkeypatch
+) -> None:
+    monkeypatch.setattr(question_service, "get_nearby_pois", _fake_nearby)
+
+    _, q_agreed = await _make_point_with_question(db_session, "89a-cell-agreed")
+    _, q_split = await _make_point_with_question(db_session, "89a-cell-split")
+    await _add_answers(db_session, q_agreed, [["poi-a"]] * 5)
+    await _add_answers(
+        db_session,
+        q_split,
+        [["poi-a"], ["poi-a"], ["poi-a"], ["poi-b"], ["poi-b"]],
+    )
+
+    newcomer = await _make_user(db_session, "newcomer")
+    result = await question_service.get_next_question(db_session, newcomer.id)
+
+    assert result is not None
+    assert result["question_id"] == str(q_split.id)
+
+
+@pytest.mark.asyncio
+async def test_completed_no_consensus_questions_are_never_served(
+    db_session, monkeypatch
+) -> None:
+    monkeypatch.setattr(question_service, "get_nearby_pois", _fake_nearby)
+
+    _, q_done = await _make_point_with_question(db_session, "89a-cell-done")
+    q_done.status = "no_consensus"
+    q_done.locked_at = datetime.datetime.now(datetime.timezone.utc)
+    await db_session.flush()
+    _, q_open = await _make_point_with_question(db_session, "89a-cell-open")
+
+    user = await _make_user(db_session, "player")
+    result = await question_service.get_next_question(db_session, user.id)
+
+    assert result is not None
+    assert result["question_id"] == str(q_open.id)
+
+
+@pytest.mark.asyncio
+async def test_ten_response_questions_are_not_served_while_underfilled_remain(
+    db_session, monkeypatch
+) -> None:
+    monkeypatch.setattr(question_service, "get_nearby_pois", _fake_nearby)
+
+    _, q_full = await _make_point_with_question(db_session, "89a-cell-full")
+    _, q_open = await _make_point_with_question(db_session, "89a-cell-short")
+    await _add_answers(db_session, q_full, [["poi-a"]] * 10)
+
+    newcomer = await _make_user(db_session, "newcomer")
+    result = await question_service.get_next_question(db_session, newcomer.id)
+
+    assert result is not None
+    assert result["question_id"] == str(q_open.id)
+
+
+@pytest.mark.asyncio
+async def test_new_questions_store_the_ten_response_cap(
+    db_session, monkeypatch
+) -> None:
+    monkeypatch.setattr(question_service, "get_nearby_pois", _fake_nearby)
+    gps = GpsPoint(lat=LA_LAT, lon=LA_LON, h3_cell="89a-cell-new")
+    db_session.add(gps)
+    await db_session.flush()
+
+    user = await _make_user(db_session, "player")
+    result = await question_service.get_next_question(db_session, user.id)
+
+    assert result is not None
+    created = await db_session.get(Question, uuid.UUID(result["question_id"]))
+    assert created is not None
+    assert created.answers_target == 10

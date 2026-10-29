@@ -21,12 +21,13 @@ class Settings(BaseSettings):
     h3_resolution: int = 9
     use_h3_dedup: bool = True
 
-    # Consensus policy. A question collects consensus_base_target independent
-    # answers; if annotators disagree, or the area is dense
-    # (candidate_density >= dense_candidate_threshold), the target escalates
-    # to consensus_max_target before the label is finalized.
-    consensus_base_target: int = 3
-    consensus_max_target: int = 5
+    # Jaccard sampling: fill every question to consensus_min_answers, then
+    # send more people to the lowest average pairwise Jaccard until
+    # consensus_max_answers, when the question is complete.
+    consensus_min_answers: int = 5
+    consensus_max_answers: int = 10
+    # Kept as a difficulty covariate threshold; it no longer changes how
+    # many answers a question collects.
     dense_candidate_threshold: int = 7
     # Sybil gate: answers from accounts younger than this don't count toward
     # consensus (they still earn participation points). 0 disables the gate;

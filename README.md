@@ -36,8 +36,8 @@ Live: **https://poi-game.vercel.app**
 - **Auth** — Google OAuth (server-side) or local register/login; sessions in HttpOnly cookies
 - **Game Screen** — full-page Leaflet map with numbered candidate pins and a bottom candidate list
 - **Answer Submission** — pick the most likely POI; answer is stored and scored server-side
-- **Consensus Labeling** — questions collect multiple independent answers and lock as either `consensus_reached` (with confidence) or `no_consensus` (ambiguous, documented)
-- **Scoring** — base participation + retroactive consensus bonus + difficulty bonus (see Consensus & Scoring)
+- **Agreement tracking** — questions collect set answers, store mean pairwise Jaccard, and complete at 10 answers without naming a winning place
+- **Scoring** — 5 participation points per answer; proximity is recorded but not scored
 - **Leaderboard** — ranked view of players with at least one answer (login required)
 - **Admin Exports** — raw annotations *and* consensus dataset (CSV/JSON) for ML training
 - **Data Pipeline** — Overture Maps import + synthetic GPS visit generation from real POIs
@@ -92,9 +92,9 @@ The knobs that actually shape gameplay/consensus:
 | `POI_MAX_CANDIDATES` | Max options shown per question | `12` |
 | `H3_RESOLUTION` | H3 hex resolution (7–12) | `9` |
 | `USE_H3_DEDUP` | Skip GPS points in H3 cells the user already answered | `true` |
-| `CONSENSUS_BASE_TARGET` | Answers per question before a consensus decision | `3` |
-| `CONSENSUS_MAX_TARGET` | Escalated target for ambiguous/dense questions | `5` |
-| `DENSE_CANDIDATE_THRESHOLD` | Candidate count that marks a question as dense/hard | `12` |
+| `CONSENSUS_MIN_ANSWERS` | Fill every question to this many eligible answers before Jaccard routing | `5` |
+| `CONSENSUS_MAX_ANSWERS` | Complete the question and stop presenting it | `10` |
+| `DENSE_CANDIDATE_THRESHOLD` | Candidate count kept as a difficulty covariate (no longer changes the answer cap) | `7` |
 | `CONSENSUS_MIN_ACCOUNT_AGE_MINUTES` | Sybil gate for vote counting (0 = off, `60` in prod) | `0` |
 | `RESTRICT_GPS_TO_LA` | Only serve GPS probes inside the LA bbox (`app/regions.py`) | `true` |
 
@@ -152,26 +152,26 @@ Other scripts:
 
 ## Consensus & Scoring
 
-Implemented in `backend/app/services/scoring_service.py`. The design goal is
-label quality: every question is an annotation task that ends in a locked,
-exportable consensus label with a confidence score.
+Implemented in `backend/app/services/scoring_service.py`. Each answer is a
+set of places. Agreement is the mean pairwise Jaccard similarity of those
+sets. Jaccard does not name a single winning place.
 
-**Consensus lifecycle (per question):**
+**Agreement lifecycle (per question):**
 
-1. A question collects at least **3 independent answers** (one per user, enforced by a DB unique constraint).
-2. The leading POI wins when it has **≥60% of votes AND a lead of ≥2** over the runner-up (so a 2–2 tie can never pass — ties resolve by collecting more votes).
-3. If annotators disagree at the base target — or the area is dense (`candidate_density ≥ DENSE_CANDIDATE_THRESHOLD`) — the target escalates to **5 answers** before the decision is final.
-4. The question then **locks** as `consensus_reached` (label + confidence stored) or `no_consensus` (a documented ambiguous point). Locked labels are immutable.
+1. Every question collects at least **5 eligible answers** (one per user, enforced by a DB unique constraint).
+2. Pairwise Jaccard is `|A∩B| / |A∪B|`. The question score is the mean over all `n(n−1)/2` pairs.
+3. While any open question has fewer than 5 answers, those are served first. After that, more answers go to the **lowest** average Jaccard among questions with 5–9 answers.
+4. At **10** eligible answers the question **locks** as `no_consensus` with a null place id and the mean Jaccard stored as `consensus_confidence`. Locked rows are immutable.
 
-The candidate set shown to annotators is frozen on the question at creation
-(`questions.candidates`), answers are validated against it, and it is
-recoverable at export time.
+The nearby-place list is frozen on the question at creation
+(`questions.candidates`). Each player is shown at most eight of those places;
+that ordered slice is stored on the answer as `displayed_poi_ids`. Both the
+frozen set and the displayed slice are included in the admin exports.
 
 **Scoring:**
 
 - **5 points** per answer, immediately (participation)
-- **+10 consensus bonus**, paid **once, when the question locks**, to everyone who picked the winning POI
-- **+5 difficulty bonus** on top, if the question needed the escalated target
+- No consensus bonus: Jaccard measures set overlap and does not elect a place
 - No distance bonus: proximity is recorded as an ML covariate (`answers.selected_distance_meters`) but never scored. Scores never go down.
 
 **Abuse protection:** `CONSENSUS_MIN_ACCOUNT_AGE_MINUTES` can exclude

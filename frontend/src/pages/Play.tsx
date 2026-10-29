@@ -146,6 +146,7 @@ export function Play({ userId, currentScore, isFirstTimePlayer, onScoreUpdate, p
       const result = await api.post<AnswerResponse>("/game/answer", {
         question_id: question.question_id,
         selected_poi_ids: Array.from(selectedPoiIds),
+        displayed_poi_ids: question.candidates.map((candidate) => candidate.id),
       });
       setFeedback(result);
       onScoreUpdate();

@@ -12,7 +12,9 @@ from app.database import get_db
 from app.models import Answer, GpsPoint, Question, User
 from app.schemas import AnswerRequest, AnswerResponse, NextQuestionResponse
 from app.services.question_service import (
+    displayed_candidates,
     ensure_question_candidates,
+    fetch_user_used_poi_ids,
     get_next_question,
 )
 from app.services.scoring_service import apply_initial_score, evaluate_consensus
@@ -75,12 +77,32 @@ async def submit_answer(
     # Answers are validated against the candidate set frozen on the question
     # at creation, so the accepted choice set is stable and reproducible.
     await ensure_question_candidates(db, question, gps_point)
-    candidate_map = {c["id"]: c for c in question.candidates or []}
+    frozen = question.candidates or []
+    candidate_map = {c["id"]: c for c in frozen}
+    frozen_ids = set(candidate_map)
+
+    if body.displayed_poi_ids is not None:
+        displayed_ids = body.displayed_poi_ids
+        for poi_id in displayed_ids:
+            if poi_id not in frozen_ids:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Displayed POI '{poi_id}' is not a valid candidate for this question",
+                )
+    else:
+        excluded = await fetch_user_used_poi_ids(db, user.id)
+        displayed_ids = [c["id"] for c in displayed_candidates(frozen, excluded)]
+
     for poi_id in body.selected_poi_ids:
-        if poi_id not in candidate_map:
+        if poi_id not in frozen_ids:
             raise HTTPException(
                 status_code=400,
                 detail=f"Selected POI '{poi_id}' is not a valid candidate for this question",
+            )
+        if poi_id not in displayed_ids:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Selected POI '{poi_id}' was not among the places shown",
             )
 
     primary_poi_id = body.selected_poi_ids[0]
@@ -91,6 +113,7 @@ async def submit_answer(
         user_id=user.id,
         selected_poi_id=primary_poi_id,
         selected_poi_ids=body.selected_poi_ids,
+        displayed_poi_ids=displayed_ids,
     )
     db.add(answer)
     try:

@@ -17,11 +17,14 @@ Tests cover:
   logout, Google-callback account-linking rules (mocked token exchange)
 - Game: unauthenticated access, no questions available, invalid question,
   full happy-path submission, duplicate answer 409, locked question 409,
-  rejection of POIs outside the frozen candidate set
-- Consensus: unanimous 3-vote lock, disagreement escalation to 5,
-  no-consensus lock, difficulty bonus, locked-label immutability
+  rejection of POIs outside the frozen candidate set, stored displayed
+  slice, rejection of a pick that was not shown
+- Consensus: pairwise Jaccard (owner example 2/3), n<2 undefined,
+  fill-to-5 then lowest Jaccard, lock at 10 with no named place or bonus,
+  Sybil-gated young accounts, locked-row immutability
 - Leaderboard: auth required, hidden zero-answer users, ranked entries
-- Admin: non-admin rejection, bulk GPS import, label export
+- Admin: non-admin rejection, bulk GPS import, label and consensus
+  exports including selected sets, displayed ids, and frozen candidates
 
 Happy-path submission is testable in SQLite because answers validate against
 the candidate set frozen on the question — no `places` table needed.
@@ -83,12 +86,12 @@ after completion.
 
 ### Consensus & Scoring
 - [ ] Any answer awards 5 participation points immediately (no distance bonus)
-- [ ] With 3 matching answers from 3 users, the question locks as
-      `consensus_reached` and each matching answer gains +10
-- [ ] A 2–1 split at 3 answers escalates the target to 5 instead of deciding
-- [ ] A 3–2 split at 5 answers locks as `no_consensus` with no bonus
-- [ ] Escalated questions that reach consensus pay +15 (consensus + difficulty)
+- [ ] Unanimous sets stay open through 9 answers; the 10th locks as
+      `no_consensus` with a null place id and no bonus
+- [ ] Mean pairwise Jaccard for {A,B}/{A,B}/{A} is 2/3
+- [ ] Questions with fewer than 5 answers are served before 5–9
+- [ ] Once every open question has at least 5, the lowest Jaccard is served
 - [ ] Submitting to a locked question returns 409
-- [ ] Locked labels never change; scores never decrease
-- [ ] `/admin/export/consensus` includes status, label, confidence, vote
+- [ ] Locked rows never change; scores never decrease
+- [ ] `/admin/export/consensus` includes status, Jaccard confidence, vote
       distribution, and candidate density for every question

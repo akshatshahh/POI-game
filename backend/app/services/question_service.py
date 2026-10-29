@@ -1,10 +1,11 @@
 """Service for selecting and creating game questions."""
 
 import datetime
+import random
 import uuid
 import zoneinfo
 
-from sqlalchemy import ColumnElement, case, func, select
+from sqlalchemy import ColumnElement, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
@@ -12,7 +13,11 @@ from app.geo import lat_lon_to_h3
 from app.models import Answer, GpsPoint, Question
 from app.regions import point_in_los_angeles
 from app.services.poi_service import get_nearby_pois
-from app.services.scoring_service import TERMINAL_STATUSES
+from app.services.scoring_service import (
+    TERMINAL_STATUSES,
+    eligible_selection_sets_by_question,
+    mean_pairwise_jaccard,
+)
 
 # Question timestamps are shown in study-area local time (the game covers LA).
 _LA_TZ = zoneinfo.ZoneInfo("America/Los_Angeles")
@@ -24,8 +29,19 @@ MIN_CANDIDATES = 3
 # Hard cap on the candidate set frozen onto a question at creation.
 _MAX_FROZEN_CANDIDATES = 400
 
-# How many low-answer-count GPS points to try before giving up on a question.
-_GPS_SAMPLE_SIZE = 5
+
+def displayed_candidates(
+    frozen: list[dict] | None,
+    excluded_poi_ids: set[str],
+    max_candidates: int | None = None,
+) -> list[dict]:
+    """The ordered subset a player is shown: frozen order, minus exclusions, capped."""
+    limit = settings.poi_max_candidates if max_candidates is None else max_candidates
+    return [
+        candidate
+        for candidate in (frozen or [])
+        if candidate.get("id") not in excluded_poi_ids
+    ][:limit]
 
 
 def _to_la_time(ts: datetime.datetime) -> datetime.datetime:
@@ -105,55 +121,88 @@ async def get_next_question(
     return await _next_question(db, user_id, min_candidates, exclusion)
 
 
+def _selection_rank_key(n: int, jaccard: float | None) -> tuple:
+    """Sort key: fill to min answers, then lowest Jaccard, then more answers.
+
+    Band 0 is n < min; higher n first so unfinished visits are not starved
+    by a stream of new GPS points. Band 1 is min <= n < max; lowest mean
+    pairwise Jaccard first, then higher n. A trailing random value breaks
+    remaining ties. Jaccard is ignored until a question has min answers.
+    """
+    tie = random.random()
+    min_n = settings.consensus_min_answers
+    if n < min_n:
+        return (0, float(-n), 0.0, tie)
+    similarity = 1.0 if jaccard is None else jaccard
+    return (1, similarity, float(-n), tie)
+
+
 async def _next_question(
     db: AsyncSession,
     user_id: uuid.UUID,
     min_candidates: int,
     exclusion: list[ColumnElement],
 ) -> dict | None:
-    """Pick the next eligible GPS point, completion-first.
+    """Pick the next eligible GPS point by the Jaccard sampling policy.
 
-    Points that already have answers come first (most answers first), so
-    in-progress questions reach their consensus target and produce a usable
-    label before annotator effort is spread onto fresh points. Terminal
-    questions are excluded upstream, so "most answers" never means "done".
+    1. Every question should receive at least the minimum eligible responses.
+    2. While any open visit is below that floor, those are served first
+       (highest n, then random).
+    3. Once every open visit has at least the minimum, remaining questions
+       are served from lowest average pairwise Jaccard to highest.
+    4. A question is complete at the stored answers_target (10) regardless
+       of Jaccard and is not presented again.
+    5. Keep picking the lowest-Jaccard question among those with 5–9
+       responses until every question is complete or otherwise excluded.
     """
-    answer_count = (
-        select(func.count(Answer.id))
-        .join(Question, Question.id == Answer.question_id)
-        .where(Question.gps_point_id == GpsPoint.id)
-        .correlate(GpsPoint)
-        .scalar_subquery()
+    result = await db.execute(select(GpsPoint).where(*exclusion))
+    gps_rows = [
+        gps for gps in result.scalars().all() if _gps_in_study_area(gps.lat, gps.lon)
+    ]
+    if not gps_rows:
+        return None
+
+    gps_ids = [gps.id for gps in gps_rows]
+    question_result = await db.execute(
+        select(Question).where(
+            Question.gps_point_id.in_(gps_ids),
+            Question.status == "active",
+        )
+    )
+    questions = question_result.scalars().all()
+    question_by_gps = {question.gps_point_id: question for question in questions}
+    sets_by_question = await eligible_selection_sets_by_question(
+        db, [question.id for question in questions]
     )
 
-    in_progress_first = case((answer_count > 0, 0), else_=1)
+    ranked: list[tuple[tuple, GpsPoint]] = []
+    for gps_point in gps_rows:
+        question = question_by_gps.get(gps_point.id)
+        if question is None:
+            n = 0
+            jaccard = None
+        else:
+            sets = sets_by_question.get(question.id, [])
+            n = len(sets)
+            jaccard = mean_pairwise_jaccard(sets)
+        cap = settings.consensus_max_answers
+        if question is not None:
+            cap = max(question.answers_target, settings.consensus_max_answers)
+        if n >= cap:
+            continue
+        ranked.append((_selection_rank_key(n, jaccard), gps_point))
 
-    stmt = (
-        select(GpsPoint)
-        .where(*exclusion)
-        .order_by(in_progress_first, answer_count.desc(), func.random())
-        .limit(_GPS_SAMPLE_SIZE)
-    )
-
-    result = await db.execute(stmt)
-    gps_rows = result.scalars().all()
+    ranked.sort(key=lambda item: item[0])
     excluded_pois = await fetch_user_used_poi_ids(db, user_id)
 
-    for gps_point in gps_rows:
-        if not _gps_in_study_area(gps_point.lat, gps_point.lon):
-            continue
-
+    for _, gps_point in ranked:
         question = await _get_or_create_question(db, gps_point)
         if question.candidate_density < min_candidates:
             continue
 
-        # The displayed options come from the SAME frozen set answers are
-        # validated against, so what the user sees is always acceptable at
-        # submit time and reconstructable at export time. Per-user filtering
-        # only hides POIs this user already picked on other questions.
-        shown = [
-            c for c in (question.candidates or []) if c["id"] not in excluded_pois
-        ][: settings.poi_max_candidates]
+        # Shown options are a per-player slice of the frozen set. That slice
+        # is stored on the answer at submit so exports can recover it.
+        shown = displayed_candidates(question.candidates, excluded_pois)
         if len(shown) < min_candidates:
             continue
 
@@ -209,12 +258,7 @@ async def build_question_candidates(
 def _set_candidate_metadata(question: Question, candidates: list[dict]) -> None:
     question.candidates = candidates
     question.candidate_density = len(candidates)
-    # Dense areas are harder to annotate reliably: raise the annotation
-    # target up front instead of waiting for disagreement.
-    if question.candidate_density >= settings.dense_candidate_threshold:
-        question.answers_target = settings.consensus_max_target
-    else:
-        question.answers_target = settings.consensus_base_target
+    question.answers_target = settings.consensus_max_answers
 
 
 async def ensure_question_candidates(

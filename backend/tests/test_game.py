@@ -7,7 +7,9 @@ import pytest
 from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models import GpsPoint, Question, User
+from sqlalchemy import select
+
+from app.models import Answer, GpsPoint, Question, User
 from tests.conftest import auth_headers
 
 CANDIDATES = [
@@ -26,7 +28,7 @@ async def _make_question(db: AsyncSession) -> Question:
         status="active",
         candidates=CANDIDATES,
         candidate_density=len(CANDIDATES),
-        answers_target=3,
+        answers_target=10,
     )
     db.add(question)
     await db.commit()
@@ -81,7 +83,7 @@ async def test_submit_answer_happy_path(
     )
     assert response.status_code == 200
     data = response.json()
-    assert data["score_awarded"] == 5  # participation only; bonus waits for consensus
+    assert data["score_awarded"] == 5  # participation only
     assert data["selected_poi_id"] == "poi-a"
     assert data["selected_poi_ids"] == ["poi-a"]
 
@@ -132,6 +134,22 @@ async def test_submit_answer_empty_list_returns_422(
     response = await client.post(
         "/game/answer",
         json={"question_id": str(question.id), "selected_poi_ids": []},
+        headers=auth_headers(test_user),
+    )
+    assert response.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_submit_answer_rejects_more_than_max_candidates(
+    client: AsyncClient, test_user: User, db_session: AsyncSession
+) -> None:
+    from app.config import settings
+
+    question = await _make_question(db_session)
+    too_many = [f"poi-{i}" for i in range(settings.poi_max_candidates + 1)]
+    response = await client.post(
+        "/game/answer",
+        json={"question_id": str(question.id), "selected_poi_ids": too_many},
         headers=auth_headers(test_user),
     )
     assert response.status_code == 422
@@ -192,3 +210,132 @@ async def test_submit_answer_on_locked_question_returns_409(
     )
     assert response.status_code == 409
     assert "finalized" in response.json()["detail"]
+
+
+@pytest.mark.asyncio
+async def test_tenth_submit_completes_question_and_rejects_the_next(
+    client: AsyncClient, db_session: AsyncSession
+) -> None:
+    question = await _make_question(db_session)
+    users = []
+    for index in range(10):
+        user = User(
+            id=uuid.uuid4(),
+            email=f"cap{index}@example.com",
+            display_name=f"Cap {index}",
+        )
+        db_session.add(user)
+        users.append(user)
+    await db_session.commit()
+
+    for user in users:
+        response = await client.post(
+            "/game/answer",
+            json={"question_id": str(question.id), "selected_poi_ids": ["poi-a"]},
+            headers=auth_headers(user),
+        )
+        assert response.status_code == 200
+        assert response.json()["score_awarded"] == 5
+
+    await db_session.refresh(question)
+    assert question.status == "no_consensus"
+    assert question.locked_at is not None
+    assert question.consensus_poi_id is None
+    assert question.answers_target == 10
+    assert question.votes_total == 10
+
+    extra = User(
+        id=uuid.uuid4(),
+        email="cap-extra@example.com",
+        display_name="Cap Extra",
+    )
+    db_session.add(extra)
+    await db_session.commit()
+    blocked = await client.post(
+        "/game/answer",
+        json={"question_id": str(question.id), "selected_poi_ids": ["poi-a"]},
+        headers=auth_headers(extra),
+    )
+    assert blocked.status_code == 409
+    assert "finalized" in blocked.json()["detail"]
+
+
+@pytest.mark.asyncio
+async def test_submit_stores_client_displayed_poi_ids(
+    client: AsyncClient, test_user: User, db_session: AsyncSession
+) -> None:
+    question = await _make_question(db_session)
+    shown = ["poi-c", "poi-a"]
+
+    response = await client.post(
+        "/game/answer",
+        json={
+            "question_id": str(question.id),
+            "selected_poi_ids": ["poi-a"],
+            "displayed_poi_ids": shown,
+        },
+        headers=auth_headers(test_user),
+    )
+    assert response.status_code == 200
+
+    stored = await db_session.execute(
+        select(Answer).where(Answer.question_id == question.id)
+    )
+    assert stored.scalar_one().displayed_poi_ids == shown
+
+
+@pytest.mark.asyncio
+async def test_submit_without_displayed_ids_stores_the_recomputed_slice(
+    client: AsyncClient, test_user: User, db_session: AsyncSession
+) -> None:
+    question = await _make_question(db_session)
+
+    response = await client.post(
+        "/game/answer",
+        json={"question_id": str(question.id), "selected_poi_ids": ["poi-b"]},
+        headers=auth_headers(test_user),
+    )
+    assert response.status_code == 200
+
+    stored = await db_session.execute(
+        select(Answer).where(Answer.question_id == question.id)
+    )
+    assert stored.scalar_one().displayed_poi_ids == ["poi-a", "poi-b", "poi-c"]
+
+
+@pytest.mark.asyncio
+async def test_submit_rejects_displayed_poi_outside_frozen_set(
+    client: AsyncClient, test_user: User, db_session: AsyncSession
+) -> None:
+    question = await _make_question(db_session)
+
+    response = await client.post(
+        "/game/answer",
+        json={
+            "question_id": str(question.id),
+            "selected_poi_ids": ["poi-a"],
+            "displayed_poi_ids": ["poi-a", "poi-nowhere"],
+        },
+        headers=auth_headers(test_user),
+    )
+    assert response.status_code == 400
+    assert "Displayed POI" in response.json()["detail"]
+
+
+@pytest.mark.asyncio
+async def test_submit_rejects_selected_poi_not_among_displayed(
+    client: AsyncClient, test_user: User, db_session: AsyncSession
+) -> None:
+    question = await _make_question(db_session)
+
+    response = await client.post(
+        "/game/answer",
+        json={
+            "question_id": str(question.id),
+            "selected_poi_ids": ["poi-b"],
+            "displayed_poi_ids": ["poi-a", "poi-c"],
+        },
+        headers=auth_headers(test_user),
+    )
+    assert response.status_code == 400
+    assert "not among the places shown" in response.json()["detail"]

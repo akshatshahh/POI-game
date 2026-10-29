@@ -159,9 +159,6 @@ export function PlayMapHud({
             {feedback && (
               <div className="hud-feedback">
                 <div className="hud-feedback-score">+{feedback.score_awarded} points</div>
-                <p className="hud-feedback-hint">
-                  +10 bonus if other players confirm your picks when this question finalizes!
-                </p>
                 {feedback.selected_poi_ids.length > 0 && (
                   <p className="hud-feedback-poi">
                     You picked: <strong>

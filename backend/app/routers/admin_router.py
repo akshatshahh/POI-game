@@ -23,6 +23,23 @@ MAX_CSV_BYTES = 5 * 1024 * 1024
 MAX_POI_QUALITY_SCAN = 200
 
 
+def _candidate_snapshot(candidates: list | None) -> list[dict]:
+    """Frozen places as exported: id, name, category, coordinates, optional distance."""
+    snapshot = []
+    for candidate in candidates or []:
+        row = {
+            "id": candidate.get("id"),
+            "name": candidate.get("name"),
+            "category": candidate.get("category"),
+            "lat": candidate.get("lat"),
+            "lon": candidate.get("lon"),
+        }
+        if "distance_meters" in candidate:
+            row["distance_meters"] = candidate.get("distance_meters")
+        snapshot.append(row)
+    return snapshot
+
+
 def _excel_safe(value: object) -> str:
     """Prefix cells that could be interpreted as formulas when opened in Excel."""
     s = str(value) if value is not None else ""
@@ -168,6 +185,13 @@ async def export_labels(
             "gps_timestamp": gps_point.timestamp.isoformat() if gps_point.timestamp else None,
             "h3_cell": question.h3_cell,
             "selected_poi_id": answer.selected_poi_id,
+            "selected_poi_ids": list(answer.selected_poi_ids or []),
+            "displayed_poi_ids": (
+                list(answer.displayed_poi_ids)
+                if answer.displayed_poi_ids is not None
+                else None
+            ),
+            "candidates": _candidate_snapshot(question.candidates),
             "selected_distance_meters": answer.selected_distance_meters,
             "score_awarded": answer.score_awarded,
             "answered_at": answer.created_at.isoformat(),
@@ -183,13 +207,17 @@ async def export_labels(
     output = io.StringIO()
     fieldnames = list(records[0].keys()) if records else [
         "answer_id", "question_id", "user_id", "gps_lat", "gps_lon",
-        "gps_timestamp", "h3_cell", "selected_poi_id",
-        "selected_distance_meters", "score_awarded", "answered_at",
+        "gps_timestamp", "h3_cell", "selected_poi_id", "selected_poi_ids",
+        "displayed_poi_ids", "candidates", "selected_distance_meters",
+        "score_awarded", "answered_at",
     ]
     writer = csv.DictWriter(output, fieldnames=fieldnames)
     writer.writeheader()
     for record in records:
         record["selected_poi_id"] = _excel_safe(record["selected_poi_id"])
+        record["selected_poi_ids"] = json.dumps(record["selected_poi_ids"])
+        record["displayed_poi_ids"] = json.dumps(record["displayed_poi_ids"])
+        record["candidates"] = json.dumps(record["candidates"])
         writer.writerow(record)
     output.seek(0)
     return _streaming_export(output.getvalue(), "text/csv", "labels.csv")
@@ -201,12 +229,13 @@ async def export_consensus(
     _admin: User = Depends(require_admin),
     db: AsyncSession = Depends(get_db),
 ) -> StreamingResponse:
-    """Export the consensus dataset (one row per question).
+    """Export the agreement dataset (one row per question).
 
-    This is the ground-truth artifact for ML training: the consensus label,
-    its confidence, the full vote distribution, and difficulty covariates.
-    Questions still collecting answers export with status "active" and a
-    null label; filter on status/locked_at for a frozen training set.
+    consensus_confidence is the mean pairwise Jaccard of eligible answer
+    sets. Jaccard does not name a place, so consensus_poi_id is empty on
+    newly completed questions. vote_distribution still groups the stored
+    primary pick. Questions still collecting answers export as "active";
+    filter on status/locked_at for a frozen set.
     """
     vote_result = await db.execute(
         select(
@@ -219,6 +248,17 @@ async def export_consensus(
     votes_by_question: dict = {}
     for question_id, poi_id, cnt in vote_result.all():
         votes_by_question.setdefault(question_id, {})[poi_id] = cnt
+
+    displayed_result = await db.execute(
+        select(Answer.question_id, Answer.displayed_poi_ids).order_by(
+            Answer.created_at.asc()
+        )
+    )
+    displayed_by_question: dict[object, list] = {}
+    for question_id, displayed in displayed_result.all():
+        displayed_by_question.setdefault(question_id, []).append(
+            list(displayed) if displayed is not None else None
+        )
 
     result = await db.execute(
         select(Question, GpsPoint)
@@ -240,7 +280,9 @@ async def export_consensus(
             "votes_total": question.votes_total,
             "answers_target": question.answers_target,
             "candidate_density": question.candidate_density,
+            "candidates": _candidate_snapshot(question.candidates),
             "vote_distribution": votes_by_question.get(question.id, {}),
+            "displayed_poi_ids": displayed_by_question.get(question.id, []),
             "locked_at": question.locked_at.isoformat() if question.locked_at else None,
             "created_at": question.created_at.isoformat(),
         }
@@ -256,14 +298,16 @@ async def export_consensus(
     fieldnames = list(records[0].keys()) if records else [
         "question_id", "gps_lat", "gps_lon", "gps_timestamp", "h3_cell",
         "status", "consensus_poi_id", "consensus_confidence", "votes_total",
-        "answers_target", "candidate_density", "vote_distribution",
-        "locked_at", "created_at",
+        "answers_target", "candidate_density", "candidates", "vote_distribution",
+        "displayed_poi_ids", "locked_at", "created_at",
     ]
     writer = csv.DictWriter(output, fieldnames=fieldnames)
     writer.writeheader()
     for record in records:
         record["consensus_poi_id"] = _excel_safe(record["consensus_poi_id"] or "")
+        record["candidates"] = json.dumps(record["candidates"])
         record["vote_distribution"] = json.dumps(record["vote_distribution"])
+        record["displayed_poi_ids"] = json.dumps(record["displayed_poi_ids"])
         writer.writerow(record)
     output.seek(0)
     return _streaming_export(output.getvalue(), "text/csv", "consensus.csv")
