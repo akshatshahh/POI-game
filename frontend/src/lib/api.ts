@@ -41,6 +41,7 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
     }
     throw new ApiError(res.status, detail);
   }
+  if (res.status === 204) return undefined as T;
   return res.json();
 }
 
@@ -48,6 +49,7 @@ export const api = {
   get: <T>(path: string) => request<T>(path),
   post: <T>(path: string, body?: unknown, options: Pick<RequestInit, "signal"> = {}) =>
     request<T>(path, { ...options, method: "POST", body: body ? JSON.stringify(body) : undefined }),
+  delete: <T = void>(path: string) => request<T>(path, { method: "DELETE" }),
 };
 
 /** Clears HttpOnly session cookie on the server. */

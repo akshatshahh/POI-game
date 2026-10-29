@@ -95,6 +95,29 @@ class FeedbackResponse(FeedbackReceipt):
     email: str | None
 
 
+class CampaignSubscriptionRequest(BaseModel):
+    email: str = Field(..., max_length=320)
+
+    @field_validator("email")
+    @classmethod
+    def validate_email(cls, value: str) -> str:
+        return RegisterRequest.validate_email(value)
+
+
+class CampaignSubscriptionResponse(BaseModel):
+    id: uuid.UUID
+    email: str
+    created_at: datetime.datetime
+
+    model_config = {"from_attributes": True}
+
+
+class CampaignSubscriptionStatus(BaseModel):
+    subscribed: bool
+    email: str | None = None
+    created_at: datetime.datetime | None = None
+
+
 class AuthSessionResponse(BaseModel):
     """Returned after login/register; JWT is only in HttpOnly cookie (not in body)."""
 

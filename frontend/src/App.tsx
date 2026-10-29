@@ -84,6 +84,7 @@ function AppShell({
               <RequireAuth user={user}>
                 <Play
                   userId={user?.id ?? ""}
+                  userEmail={user?.email ?? ""}
                   currentScore={user?.score ?? 0}
                   isFirstTimePlayer={user?.answers_count === 0}
                   onScoreUpdate={refreshUser}

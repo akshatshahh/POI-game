@@ -49,6 +49,34 @@ async def test_next_question_no_gps_points(client: AsyncClient, test_user: User)
 
 
 @pytest.mark.asyncio
+async def test_next_question_marks_returning_player_complete(
+    client: AsyncClient, test_user: User, db_session: AsyncSession
+) -> None:
+    test_user.answers_count = 1
+    await db_session.commit()
+
+    response = await client.get("/game/next-question", headers=auth_headers(test_user))
+    assert response.status_code == 410
+    assert "completed every available question" in response.json()["detail"]
+
+
+@pytest.mark.asyncio
+async def test_skipped_question_does_not_mark_campaign_complete(
+    client: AsyncClient, test_user: User, db_session: AsyncSession
+) -> None:
+    test_user.answers_count = 1
+    await db_session.commit()
+
+    response = await client.get(
+        "/game/next-question",
+        params={"exclude_question_id": uuid.uuid4()},
+        headers=auth_headers(test_user),
+    )
+    assert response.status_code == 404
+    assert "No more questions" in response.json()["detail"]
+
+
+@pytest.mark.asyncio
 async def test_submit_answer_unauthenticated(client: AsyncClient) -> None:
     response = await client.post("/game/answer", json={
         "question_id": "00000000-0000-0000-0000-000000000000",

@@ -171,7 +171,12 @@ export function PlayMapHud({
               </div>
             )}
             {error && <p className="hud-error">{error}</p>}
-            <button type="button" onClick={onNextQuestion} className="btn btn-primary hud-submit">
+            <button
+              type="button"
+              onClick={onNextQuestion}
+              className="btn btn-primary hud-submit"
+              disabled={submitting}
+            >
               Next Question →
             </button>
           </div>

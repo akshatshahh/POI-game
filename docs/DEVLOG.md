@@ -31,6 +31,72 @@ Required sections for every later entry:
 
 ---
 
+## 2026-10-29 — Celebrate campaign completion and record notification opt-ins
+
+**Why we chose this.** Players who reach the end of the available questions
+need a clear finish instead of returning to a generic empty state. The owner
+asked for a congratulations message, confetti, and an email field for hearing
+about the next campaign. We use a distinct server response for completion so
+an ordinary loading error or a temporarily empty campaign cannot trigger the
+celebration. Notification consent is stored separately from answers so it is
+not mistaken for research annotation data, and only the signed-in account
+email can be submitted.
+
+**What changed.**
+
+- `backend/app/routers/game_router.py` returns HTTP 410 when a returning
+  player has completed every question currently available. First-time players
+  with no available question and timer skips that find no replacement retain
+  the existing HTTP 404 behavior.
+- `frontend/src/pages/Play.tsx`, `frontend/src/components/PlayMapHud.tsx`, and
+  `frontend/src/components/GameCompletion.tsx` show completion only for that
+  410 response, wait for the account score to refresh after an answer, then
+  show a focused congratulations heading, total account score, confetti, and
+  the next-campaign notification choice. Confetti is hidden when reduced
+  motion is requested.
+- `backend/app/routers/campaign_router.py`, `backend/app/models.py`, and
+  `backend/app/schemas.py` add authenticated endpoints to read, save, and
+  remove a player's notification preference. Saving is repeatable and uses
+  only the account email. The stored row includes a consent version and is
+  deleted with its user account.
+- `backend/alembic/versions/d4e9f6a1b307_add_campaign_subscriptions.py` adds
+  the separate `campaign_subscriptions` table with unique account and email
+  indexes, timestamps, consent version, and cascading user foreign key.
+- `frontend/src/lib/api.ts` supports DELETE requests and empty HTTP 204
+  responses. `frontend/src/index.css` provides the responsive completion,
+  notification, and reduced-motion presentation.
+- `backend/tests/test_campaign_subscriptions.py`, `backend/tests/test_game.py`,
+  and `frontend/e2e/game-completion.spec.ts` cover completion versus ordinary
+  empty states, final-score refresh, account-email enforcement, repeat saves,
+  removal, export isolation, retry behavior, focus, reduced motion, and both
+  desktop and mobile layouts.
+
+**What was affected.**
+
+- **Players:** returning players now get a clear end state and can opt in,
+  review an existing preference, retry a failed save, or remove the preference.
+- **Database / API:** deploy adds one table and three authenticated
+  notification endpoints. `GET /game/next-question` gains a documented 410
+  completion outcome in addition to its existing success, 401, and 404 paths.
+- **Researchers / exports:** notification rows stay outside both label and
+  consensus exports. Answer rows and their research fields are unchanged.
+- **Deploy:** the new Alembic migration must run before traffic reaches the
+  notification endpoints.
+
+**What we did not change.** Question selection, answer storage, scoring,
+average pairwise Jaccard, fill-to-5 routing, low-agreement sampling, the stop
+at 10, or admin export schemas. This stores notification consent only; it does
+not send campaign email, add an email delivery vendor, or create a campaign
+management or model-training system.
+
+**Deploy / verification.** Backend: 72 tests passed. Frontend: lint passed,
+the TypeScript production build passed, and all 52 browser tests passed across
+desktop and mobile Chromium. Alembic reports `d4e9f6a1b307` as the single head,
+and the full PostgreSQL upgrade rendered successfully in offline mode. The
+migration was not applied to the production database during local testing.
+
+---
+
 ## 2026-10-29 — Publish the working handbook in docs and expand the change log
 
 **Why we chose this.** The Jaccard and shown-places work needed a detailed
