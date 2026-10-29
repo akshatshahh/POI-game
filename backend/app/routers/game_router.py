@@ -34,6 +34,11 @@ async def next_question(
         exclude_question_id=exclude_question_id,
     )
     if result is None:
+        if exclude_question_id is None and user.answers_count > 0:
+            raise HTTPException(
+                status_code=410,
+                detail="You have completed every available question in this campaign.",
+            )
         raise HTTPException(
             status_code=404,
             detail="No more questions available. Check back later!",

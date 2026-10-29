@@ -1030,6 +1030,195 @@ a {
   margin-bottom: 1.5rem;
 }
 
+/* Completed campaign */
+.game-complete {
+  position: relative;
+  display: flex;
+  min-height: 100%;
+  flex: 1;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden auto;
+  padding: 3rem 1.5rem;
+  background: #0b1120;
+  isolation: isolate;
+}
+
+.game-complete-content {
+  position: relative;
+  z-index: 2;
+  width: min(100%, 680px);
+  text-align: center;
+}
+
+.game-complete-eyebrow {
+  margin-bottom: 0.7rem;
+  color: var(--color-score);
+  font-size: 0.78rem;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.game-complete h1 {
+  margin-bottom: 0.75rem;
+  color: var(--color-text);
+  font-size: 2.75rem;
+  line-height: 1.1;
+}
+
+.game-complete-message {
+  max-width: 600px;
+  margin: 0 auto;
+  color: var(--color-text-muted);
+  font-size: 1.05rem;
+  line-height: 1.7;
+}
+
+.game-complete-score {
+  margin: 1.25rem 0 2rem;
+  color: var(--color-text-muted);
+}
+
+.game-complete-score strong {
+  margin: 0 0.25rem 0 0.4rem;
+  color: var(--color-score);
+  font-size: 1.35rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.campaign-notification-box {
+  padding: 1.5rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  background: var(--color-surface);
+  text-align: left;
+  box-shadow: 0 18px 50px rgba(0, 0, 0, 0.28);
+}
+
+.campaign-notification-box h2 {
+  margin-bottom: 0.35rem;
+  font-size: 1.2rem;
+}
+
+.campaign-notification-box > form > p,
+.campaign-notification-success p {
+  color: var(--color-text-muted);
+}
+
+.campaign-notification-box label {
+  display: block;
+  margin: 1.1rem 0 0.4rem;
+  color: var(--color-text);
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+.campaign-notification-controls {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.65rem;
+}
+
+.campaign-notification-controls input {
+  width: 100%;
+  min-height: 44px;
+  padding: 0.65rem 0.8rem;
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  background: var(--color-bg);
+  color: var(--color-text);
+  font: inherit;
+}
+
+.campaign-notification-controls input:focus {
+  border-color: var(--color-primary);
+  outline: 2px solid rgba(99, 102, 241, 0.28);
+  outline-offset: 1px;
+}
+
+.campaign-notification-controls .btn {
+  min-height: 44px;
+  white-space: nowrap;
+}
+
+.campaign-notification-box .campaign-notification-privacy {
+  margin-top: 0.65rem;
+  font-size: 0.75rem;
+}
+
+.campaign-notification-box .campaign-notification-error {
+  margin-top: 0.75rem;
+  color: var(--color-error);
+  font-size: 0.82rem;
+}
+
+.campaign-notification-checking {
+  min-height: 3rem;
+  display: grid;
+  place-items: center;
+  color: var(--color-text-muted);
+  text-align: center;
+}
+
+.campaign-notification-box .campaign-notification-notice {
+  margin-top: 0.75rem;
+  color: var(--color-success);
+  font-size: 0.82rem;
+}
+
+.campaign-notification-success {
+  padding: 0.5rem 0;
+  text-align: center;
+}
+
+.campaign-notification-success strong {
+  color: var(--color-text);
+}
+
+.campaign-notification-success .btn {
+  margin-top: 1rem;
+}
+
+.completion-confetti {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.completion-confetti-piece {
+  position: absolute;
+  top: -1.5rem;
+  width: 9px;
+  height: 16px;
+  border-radius: 2px;
+  opacity: 0;
+  animation-name: completion-confetti-fall;
+  animation-timing-function: cubic-bezier(0.2, 0.7, 0.35, 1);
+  animation-fill-mode: forwards;
+}
+
+@keyframes completion-confetti-fall {
+  0% {
+    opacity: 0;
+    transform: translate3d(0, -5vh, 0) rotate(0deg);
+  }
+  8% { opacity: 1; }
+  88% { opacity: 1; }
+  100% {
+    opacity: 0;
+    transform: translate3d(var(--confetti-drift), 110vh, 0) rotate(var(--confetti-spin));
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .completion-confetti-piece {
+    display: none;
+    animation: none;
+  }
+}
+
 /* First-time play tutorial */
 .tutorial-layer {
   position: fixed;
@@ -2594,6 +2783,31 @@ a {
   .hero-subtitle {
     font-size: 0.95rem;
     margin-bottom: 1.25rem;
+  }
+
+  .game-complete {
+    align-items: flex-start;
+    padding: 2.25rem 0.9rem;
+  }
+
+  .game-complete h1 {
+    font-size: 2.15rem;
+  }
+
+  .game-complete-message {
+    font-size: 0.95rem;
+  }
+
+  .campaign-notification-box {
+    padding: 1.1rem;
+  }
+
+  .campaign-notification-controls {
+    grid-template-columns: 1fr;
+  }
+
+  .campaign-notification-controls .btn {
+    width: 100%;
   }
 
   .stat-cards {

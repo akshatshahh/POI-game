@@ -13,6 +13,7 @@ from app.routers.game_router import router as game_router
 from app.routers.leaderboard_router import router as leaderboard_router
 from app.routers.poi_router import router as poi_router
 from app.routers.feedback_router import router as feedback_router
+from app.routers.campaign_router import router as campaign_router
 
 
 @asynccontextmanager
@@ -49,6 +50,7 @@ app.include_router(game_router)
 app.include_router(leaderboard_router)
 app.include_router(poi_router)
 app.include_router(feedback_router)
+app.include_router(campaign_router)
 
 
 @app.get("/health")

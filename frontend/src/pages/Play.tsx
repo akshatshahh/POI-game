@@ -4,6 +4,7 @@ import { GameMap } from "../components/GameMap";
 import { PlayMapHud } from "../components/PlayMapHud";
 import { FirstTimeTutorial } from "../components/FirstTimeTutorial";
 import { LoadingScreen } from "../components/LoadingScreen";
+import { GameCompletion } from "../components/GameCompletion";
 import { api, isApiError } from "../lib/api";
 import { timeOfDay } from "../lib/timeOfDay";
 import type { AnswerResponse, Question } from "../lib/types";
@@ -13,13 +14,21 @@ const QUESTION_TIME_LIMIT_MS = QUESTION_TIME_LIMIT_SECONDS * 1000;
 
 interface PlayProps {
   userId: string;
+  userEmail: string;
   currentScore: number;
   isFirstTimePlayer: boolean;
-  onScoreUpdate: () => void;
+  onScoreUpdate: () => Promise<void>;
   paused?: boolean;
 }
 
-export function Play({ userId, currentScore, isFirstTimePlayer, onScoreUpdate, paused = false }: PlayProps) {
+export function Play({
+  userId,
+  userEmail,
+  currentScore,
+  isFirstTimePlayer,
+  onScoreUpdate,
+  paused = false,
+}: PlayProps) {
   const navigate = useNavigate();
   const [question, setQuestion] = useState<Question | null>(null);
   const [selectedPoiIds, setSelectedPoiIds] = useState<Set<string>>(new Set());
@@ -27,6 +36,7 @@ export function Play({ userId, currentScore, isFirstTimePlayer, onScoreUpdate, p
   const [feedback, setFeedback] = useState<AnswerResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [gameComplete, setGameComplete] = useState(false);
   const [secondsRemaining, setSecondsRemaining] = useState(QUESTION_TIME_LIMIT_SECONDS);
   const [tutorialOpen, setTutorialOpen] = useState(isFirstTimePlayer);
   const recenterRef = useRef<() => void>(() => {});
@@ -49,6 +59,7 @@ export function Play({ userId, currentScore, isFirstTimePlayer, onScoreUpdate, p
 
   const fetchQuestion = useCallback(async (excludeQuestionId?: string) => {
     setLoading(true);
+    setGameComplete(false);
     setSelectedPoiIds(new Set());
     setFeedback(null);
     setError(null);
@@ -65,6 +76,17 @@ export function Play({ userId, currentScore, isFirstTimePlayer, onScoreUpdate, p
     } catch (err) {
       if (isApiError(err, 401)) {
         navigate("/", { replace: true });
+        return;
+      }
+      if (isApiError(err, 410)) {
+        setError(null);
+        setGameComplete(true);
+        setQuestion(null);
+        return;
+      }
+      if (isApiError(err, 404) && excludeQuestionId) {
+        setError("No other questions are available right now. Try again to continue.");
+        setQuestion(null);
         return;
       }
       setError(err instanceof Error ? err.message : "Failed to load question");
@@ -148,8 +170,8 @@ export function Play({ userId, currentScore, isFirstTimePlayer, onScoreUpdate, p
         selected_poi_ids: Array.from(selectedPoiIds),
         displayed_poi_ids: question.candidates.map((candidate) => candidate.id),
       });
+      await onScoreUpdate();
       setFeedback(result);
-      onScoreUpdate();
     } catch (err) {
       if (isApiError(err, 401)) {
         navigate("/", { replace: true });
@@ -171,6 +193,10 @@ export function Play({ userId, currentScore, isFirstTimePlayer, onScoreUpdate, p
         <LoadingScreen label="Loading question…" />
       </div>
     );
+  }
+
+  if (gameComplete) {
+    return <GameCompletion defaultEmail={userEmail} finalScore={currentScore} />;
   }
 
   if (error && !question) {
