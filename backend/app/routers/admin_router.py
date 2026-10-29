@@ -4,6 +4,7 @@ import csv
 import datetime
 import io
 import json
+from typing import Literal
 
 from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
 from fastapi.responses import StreamingResponse
@@ -158,7 +159,7 @@ def _streaming_export(payload: str, media_type: str, filename: str) -> Streaming
 
 @router.get("/export/labels")
 async def export_labels(
-    format: str = Query("csv", enum=["csv", "json"]),
+    format: Literal["csv", "json"] = Query("csv"),
     _admin: User = Depends(require_admin),
     db: AsyncSession = Depends(get_db),
 ) -> StreamingResponse:
@@ -225,7 +226,7 @@ async def export_labels(
 
 @router.get("/export/consensus")
 async def export_consensus(
-    format: str = Query("csv", enum=["csv", "json"]),
+    format: Literal["csv", "json"] = Query("csv"),
     _admin: User = Depends(require_admin),
     db: AsyncSession = Depends(get_db),
 ) -> StreamingResponse:

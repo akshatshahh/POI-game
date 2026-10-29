@@ -1,5 +1,9 @@
 # POI Game — Development Log
 
+## 2026-10-28 — Keep label exports loading on current FastAPI
+
+Export format is now a csv/json type on the parameter instead of a Query enum flag. Newer FastAPI dropped that flag, which stopped the backend from importing in CI.
+
 ## 2026-10-28 — Record the places each player actually saw
 
 Each answer now stores the ordered list of places shown on that question, at most eight. The labels export includes that list and the question's frozen nearby-place set. The consensus export includes the frozen set and every answer's displayed list. Older answers leave the displayed list unset. Players still pick from the same map; the extra field is not shown on screen.
