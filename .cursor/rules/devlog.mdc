@@ -1,0 +1,20 @@
+---
+description: Detailed DEVLOG entry required for every commit
+alwaysApply: true
+---
+
+# Development log
+
+Before finishing any change, add one detailed entry at the top of `docs/DEVLOG.md`.
+Skip only when the owner says not to record it. One git commit = one dated heading.
+
+Follow the template already in that file:
+
+- Why we chose this (and why not the alternatives)
+- What changed (each behavior; files as lookup keys, not a dumped diff)
+- What was affected (players, exports, database, APIs, tests, deploy)
+- What we did not change
+- Deploy / verification when something shipped
+
+Do not backfill older commits unless asked. Do not invent latency, queues,
+trained models, or accuracy numbers. Jaccard does not name a winning place.

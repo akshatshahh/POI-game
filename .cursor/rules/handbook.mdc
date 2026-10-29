@@ -1,0 +1,17 @@
+---
+description: Load the committed POI game handbook and spin up reviewers
+alwaysApply: true
+---
+
+# Handbook
+
+Before any implementation request, read and follow `docs/AGENTS.md` and
+`docs/RULES.md`. Keep the root `AGENTS.md` / `RULES.md` copies identical when
+you edit either pair.
+
+Launch the real reviewer agents listed there (product, engineering, QA,
+data/ML, research, scrum; plus a statistician for formula changes). Do not
+role-play them.
+
+Record every commit in `docs/DEVLOG.md` using the template at the top of
+that file. Do not commit or push `ISSUES.md`, `.env`, or Word drafts.

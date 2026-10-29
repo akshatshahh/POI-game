@@ -51,6 +51,16 @@ client_secret_*.json
 # Local data exports (POI dumps, samples)
 data/exports/
 
-# Private notes. Keep on this machine only.
-AGENTS.md
-RULES.md
+# Word drafts and lock files (do not push)
+docs/*.docx
+docs/~$*
+
+# Private open-problems list. Keep on this machine only.
+# The working handbook is committed as docs/AGENTS.md and docs/RULES.md
+# (mirrored at the repository root for tools that only load the root).
+ISSUES.md
+
+# Editor metadata except committed always-apply rules
+.cursor/*
+!.cursor/rules/
+!.cursor/rules/**

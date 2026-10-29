@@ -1,11 +1,27 @@
 # POI Game — USC IMSC
 
-Internal project for **USC IMSC** — a gamified web app to collect human-labeled
-training data for **POI (Point of Interest) Attribution**. Players are shown
-GPS visits on a map and asked to identify which nearby POI the person was
-most likely visiting; their answers become consensus-labeled training data.
+Internal project for **USC IMSC** — a gamified web app to collect human labels
+for **POI (Point of Interest) Attribution** research. Players are shown GPS
+visits on a map and asked which nearby places the person was most likely
+visiting. Each answer is a set of places; live agreement is mean pairwise
+Jaccard with a floor of 5 answers and a stop at 10. Jaccard does not name a
+winning place. There is no trained model in this repo yet.
 
 Live: **https://poi-game.vercel.app**
+
+## Working on this repo
+
+1. This README — what it is, how to run, live stack.
+2. Top of [`docs/DEVLOG.md`](docs/DEVLOG.md) — recent decisions (why / what
+   changed / what was affected).
+3. [`docs/TESTING.md`](docs/TESTING.md) — how to check a change.
+4. [`docs/AGENTS.md`](docs/AGENTS.md) and [`docs/RULES.md`](docs/RULES.md) —
+   required reviewer agents, roles, and hard rules. Root `AGENTS.md` /
+   `RULES.md` mirror the same files for tools that only load the project
+   root; edit `docs/` first, then copy.
+5. [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md) — only when shipping.
+
+Open problems stay in a local `ISSUES.md` (not committed).
 
 ## Architecture
 
@@ -39,7 +55,7 @@ Live: **https://poi-game.vercel.app**
 - **Agreement tracking** — questions collect set answers, store mean pairwise Jaccard, and complete at 10 answers without naming a winning place
 - **Scoring** — 5 participation points per answer; proximity is recorded but not scored
 - **Leaderboard** — ranked view of players with at least one answer (login required)
-- **Admin Exports** — raw annotations *and* consensus dataset (CSV/JSON) for ML training
+- **Admin Exports** — raw annotations and per-question agreement files (CSV/JSON) for later research
 - **Data Pipeline** — Overture Maps import + synthetic GPS visit generation from real POIs
 
 ## Project Structure
@@ -70,9 +86,13 @@ POI-game/
 ├── render.yaml            # Backend blueprint (Render)
 ├── frontend/vercel.json   # Frontend routing + /api proxy (Vercel)
 ├── docs/
+│   ├── AGENTS.md          # Working handbook (reviewer agents, roles, facts)
+│   ├── RULES.md           # Short project rules
 │   ├── DEPLOYMENT.md      # Live-stack setup notes
 │   ├── DEVLOG.md          # Development log with decisions
 │   └── TESTING.md         # Test guide and manual checklist
+├── AGENTS.md              # Same handbook as docs/AGENTS.md (root loaders)
+├── RULES.md               # Same rules as docs/RULES.md
 └── README.md
 ```
 
